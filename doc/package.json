@@ -5,7 +5,7 @@
     "scripts": {
         "deploy": "gh-pages -d build",
         "docusaurus": "docusaurus",
-        "start": "docusaurus start",
+        "start": "NODE_ENV=development docusaurus start",
         "build": "docusaurus build",
         "swizzle": "docusaurus swizzle",
         "clear": "docusaurus clear",

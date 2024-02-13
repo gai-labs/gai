@@ -10,7 +10,8 @@ const config = {
     title: "Gai",
     tagline: "LLM Application Development Library",
     url: "https://gai-labs.github.io",
-    baseUrl: "/gai/",
+    //baseUrl: process.env.NODE_ENV === "development" ? "/" : "/gai/",
+    baseUrl: "/",
     onBrokenLinks: "throw",
     onBrokenMarkdownLinks: "warn",
     favicon: "img/favicon.ico",
@@ -25,7 +26,6 @@ const config = {
                 docs: {
                     sidebarPath: require.resolve("./sidebars.js"),
                     routeBasePath: "/",
-                    editUrl: "https://github.com/gai-labs/gai/doc",
                 },
                 theme: {
                     customCss: require.resolve("./src/css/custom.css"),
@@ -44,9 +44,8 @@ const config = {
                 items: [
                     {
                         label: "Gai",
-                        to: "/docs", // This is the path to your desired page
+                        to: "/",
                         position: "left",
-                        activeBaseRegex: `/`,
                     },
                 ],
             },
@@ -58,7 +57,7 @@ const config = {
                         items: [
                             {
                                 label: "Introduction",
-                                to: "docs/intro",
+                                to: "/",
                             },
                         ],
                     },
