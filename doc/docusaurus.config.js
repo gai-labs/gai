@@ -24,7 +24,7 @@ const config = {
             ({
                 docs: {
                     sidebarPath: require.resolve("./sidebars.js"),
-                    routeBasePath: "/docs",
+                    routeBasePath: "/",
                     editUrl: "https://github.com/gai-labs/gai/doc",
                 },
                 theme: {
