@@ -6,17 +6,19 @@ const lightCodeTheme = themes.palenight;
 const darkCodeTheme = themes.dracula;
 
 /** @type {import('@docusaurus/types').Config} */
+const organizationName = "gai-labs";
+const projectName = "gai";
 const config = {
     title: "Gai",
     tagline: "LLM Application Development Library",
-    url: "https://gai-labs.github.io",
+    url: `https://${organizationName}.github.io`,
     //baseUrl: process.env.NODE_ENV === "development" ? "/" : "/gai/",
-    baseUrl: "/",
+    baseUrl: `/${projectName}/`,
     onBrokenLinks: "throw",
     onBrokenMarkdownLinks: "warn",
     favicon: "img/favicon.ico",
-    organizationName: "gai-labs",
-    projectName: "gai",
+    organizationName: organizationName,
+    projectName: projectName,
 
     presets: [
         [
