@@ -9,13 +9,13 @@ const darkCodeTheme = themes.dracula;
 const config = {
     title: "Gai",
     tagline: "LLM Application Development Library",
-    url: "https://www.gailabs.ai",
-    baseUrl: "/",
+    url: "https://gai-labs.github.io",
+    baseUrl: "/gai/",
     onBrokenLinks: "throw",
     onBrokenMarkdownLinks: "warn",
     favicon: "img/favicon.ico",
-    organizationName: "https://github.com/gai-labs",
-    projectName: "gai-doc",
+    organizationName: "gai-labs",
+    projectName: "gai",
 
     presets: [
         [
