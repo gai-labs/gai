@@ -1,0 +1,12 @@
+torch>=2.0
+tokenizers>=0.14.0
+transformers>=4.35.0
+accelerate
+sympy==1.12
+pebble 
+timeout-decorator 
+attrdict
+ipykernel
+langchain-community==0.0.18
+langchain-core==0.1.19
+bitsandbytes==0.42.0
