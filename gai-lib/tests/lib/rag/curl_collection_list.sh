@@ -1,0 +1,1 @@
+curl -X GET https://gaiaio.ai/api/gen/v1/rag/collections

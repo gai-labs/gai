@@ -19,15 +19,15 @@ class TTTClient:
         if isinstance(messages, str):
             messages = chat_string_to_list(messages)
 
-        cli_config = ConfigHelper.get_cli_config()
+        lib_config = ConfigHelper.get_lib_config()
         if not generator:
-            generator = cli_config["default_generator"]
+            generator = lib_config["default_generator"]
 
         data = {
             "model": generator,
             "messages": messages,
             "stream": stream,
-            **cli_config["generators"][generator]["default"],
+            **lib_config["generators"][generator]["default"],
             **generator_params
         }
 
@@ -36,14 +36,15 @@ class TTTClient:
                 yield ChunkWrapper(chunk)
 
         try:
-            url = cli_config["generators"][generator]["url"]
-            response = http_post(url, data)
+            base_url = lib_config["gai_url"]
+            url = lib_config["generators"][generator]["url"]
+            response = http_post(base_url + url, data)
         except HttpException as he:
             if he.code == "context_length_exceeded":
                 try:
                     generator = "mistral7b_128k-exllama"
                     data["model"] = generator
-                    url = cli_config["generators"][generator]["url"]
+                    url = lib_config["generators"][generator]["url"]
                     response = http_post(url, data)
                 except Exception as e:
                     raise e
