@@ -1,18 +1,14 @@
-// @ts-check
-// Note: type annotations allow type checking and IDEs autocompletion
-
 import { themes } from "prism-react-renderer";
+
 const lightCodeTheme = themes.palenight;
 const darkCodeTheme = themes.dracula;
 
-/** @type {import('@docusaurus/types').Config} */
 const organizationName = "gai-labs";
 const projectName = "gai";
 const config = {
     title: "Gai",
     tagline: "LLM Application Development Library",
     url: `https://${organizationName}.github.io`,
-    //baseUrl: process.env.NODE_ENV === "development" ? "/" : "/gai/",
     baseUrl: `/${projectName}/`,
     onBrokenLinks: "throw",
     onBrokenMarkdownLinks: "warn",
@@ -23,8 +19,7 @@ const config = {
     presets: [
         [
             "classic",
-            /** @type {import('@docusaurus/preset-classic').Options} */
-            ({
+            {
                 docs: {
                     sidebarPath: require.resolve("./sidebars.js"),
                     routeBasePath: "/",
@@ -32,7 +27,7 @@ const config = {
                 theme: {
                     customCss: require.resolve("./src/css/custom.css"),
                 },
-            }),
+            },
         ],
     ],
 
