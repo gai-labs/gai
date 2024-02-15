@@ -6,8 +6,8 @@ import re
 import httpx
 import requests
 import json
-from gai.common.logging import logging
-logger = logging.getLogger(__name__)
+from gai.common.logging import getLogger
+logger = getLogger(__name__)
 
 
 def is_url(s):

@@ -4,10 +4,10 @@ import json
 import gai.common.ConfigHelper as ConfigHelper
 from fastapi import WebSocketDisconnect
 from gai.common.http_utils import http_post, http_delete,http_get
-from gai.common.logging import logging
+from gai.common.logging import getLogger
+logger = getLogger(__name__)
 import asyncio
 
-logger = logging.getLogger(__name__)
 lib_config = ConfigHelper.get_lib_config()
 base_url = lib_config["gai_url"]
 

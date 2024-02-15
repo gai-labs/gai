@@ -1,7 +1,7 @@
 from gai.common import file_utils
-from gai.common.logging import logging
+from gai.common.logging import getLogger
+logger = getLogger(__name__)
 import os
-logger = logging.getLogger(__name__)
 from nltk.tokenize import sent_tokenize
 
 class Chunker:

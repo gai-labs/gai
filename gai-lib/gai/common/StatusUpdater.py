@@ -1,8 +1,8 @@
 from fastapi import WebSocket
 from fastapi.websockets import WebSocketState
 import asyncio
-from gai.common.logging import logging
-logger = logging.getLogger(__name__)
+from gai.common.logging import getLogger
+logger = getLogger(__name__)
 
 
 class StatusUpdater:

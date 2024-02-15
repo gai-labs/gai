@@ -6,8 +6,8 @@ from sqlalchemy.orm import sessionmaker,joinedload
 from gai.gen.rag.models.Base import Base
 from gai.gen.rag.models.IndexedDocument import IndexedDocument
 from gai.gen.rag.models.IndexedDocumentChunk import IndexedDocumentChunk
-from gai.common.logging import logging
-logger = logging.getLogger(__name__)
+from gai.common.logging import getLogger
+logger = getLogger(__name__)
 
 class Repository:
 

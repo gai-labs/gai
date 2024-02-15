@@ -25,8 +25,8 @@ from gai.gen.api.errors import *
 
 # Configure Dependencies
 dependencies.configure_logging()
-from gai.common.logging import logging
-logger = logging.getLogger(__name__)
+from gai.common.logging import getLogger
+logger = getLogger(__name__)
 logger.info(f"Starting Gai Generators Service v{dependencies.APP_VERSION}")
 logger.info(f"Version of gai_lib installed = {dependencies.LIB_VERSION}")
 swagger_url = dependencies.get_swagger_url()
