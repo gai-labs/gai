@@ -1,15 +1,19 @@
 import gai.common.ConfigHelper as ConfigHelper
 from gai.common.http_utils import http_post
-lib_config = ConfigHelper.get_lib_config()
-base_url = lib_config["gai_url"]
+from gai.lib.ClientBase import ClientBase
+from gai.common.logging import getLogger
+logger = getLogger(__name__)
 
-class STTClient:
+class STTClient(ClientBase):
+
+    def __init__(self, config_path=None):
+        super().__init__(config_path)
+        logger.debug(f'base_url={self.base_url}')
 
     def __call__(self, generator="whisper-transformers", file=None, file_path=None):
         if generator == "openai-whisper":
             return self.openai_whisper(file=file)
 
-        url = lib_config["generators"][generator]["url"]
 
         if file_path:
             with open(file_path, "rb") as f:
@@ -19,9 +23,8 @@ class STTClient:
                 "file": (file_path, data)
             }
 
-            url = lib_config["generators"][generator]["url"]
-            response = http_post(base_url+url, files=files)
-
+            url = self._gen_url(generator)
+            response = http_post(url, files=files)
             response.decode = lambda: response.json()["text"]
             return response
 
@@ -30,7 +33,8 @@ class STTClient:
                 "model": (None, generator),
                 "file": (file.name, file.read())
             }
-            response = http_post(base_url+url, files=files)
+            url = self._gen_url(generator)
+            response = http_post(url, files=files)
             response.decode = lambda: response.json()["text"]
             return response
 

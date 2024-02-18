@@ -1,9 +1,15 @@
 from gai.common.http_utils import http_post
 import gai.common.ConfigHelper as ConfigHelper
-API_BASEURL = ConfigHelper.get_api_baseurl()
+from gai.lib.ClientBase import ClientBase
+from gai.common.logging import getLogger
+logger = getLogger(__name__)
 
 
-class TTSClient:
+class TTSClient(ClientBase):
+
+    def __init__(self, config_path=None):
+        super().__init__(config_path)
+        logger.debug(f'base_url={self.base_url}')
 
     def __call__(self, input, generator="xtts-2", stream=True, **generator_params):
         if generator == "openai-tts-1":
@@ -17,10 +23,7 @@ class TTSClient:
             "stream": stream,
             **generator_params
         }
-        lib_config = ConfigHelper.get_lib_config()
-        base_url = lib_config["gai_url"]
-        url = lib_config["generators"][generator]["url"]
-        response = http_post(base_url+url, data)
+        response = http_post(self._gen_url(generator=generator), data)
         return response
 
     def openai_tts(self, input, **generator_params):

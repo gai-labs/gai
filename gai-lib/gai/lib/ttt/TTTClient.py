@@ -5,12 +5,16 @@ import gai.common.ConfigHelper as ConfigHelper
 from gai.common.http_utils import http_post
 from gai.common.generators_utils import chat_string_to_list, chat_list_to_string
 from gai.common._exceptions import HttpException
-import json
+from gai.common.logging import getLogger
+logger = getLogger(__name__)
+import json,os
+from gai.lib.ClientBase import ClientBase
 
-API_BASEURL = ConfigHelper.get_api_baseurl()
+class TTTClient(ClientBase):
 
-
-class TTTClient:
+    def __init__(self, config_path=None):
+        super().__init__(config_path)
+        logger.debug(f'base_url={self.base_url}')
 
     def api(self, generator="mistral7b-exllama", messages=None, stream=True, **generator_params):
         if not messages:
@@ -19,15 +23,14 @@ class TTTClient:
         if isinstance(messages, str):
             messages = chat_string_to_list(messages)
 
-        lib_config = ConfigHelper.get_lib_config()
         if not generator:
-            generator = lib_config["default_generator"]
+            generator = self.config["default_generator"]
 
         data = {
             "model": generator,
             "messages": messages,
             "stream": stream,
-            **lib_config["generators"][generator]["default"],
+            **self.config["generators"][generator]["default"],
             **generator_params
         }
 
@@ -36,15 +39,16 @@ class TTTClient:
                 yield ChunkWrapper(chunk)
 
         try:
-            base_url = lib_config["gai_url"]
-            url = lib_config["generators"][generator]["url"]
-            response = http_post(base_url + url, data)
+            url = self._gen_url(generator)
+            response = http_post(url, data)
         except HttpException as he:
+
+            # Switch to Mistral7b 128k context size
             if he.code == "context_length_exceeded":
                 try:
                     generator = "mistral7b_128k-exllama"
                     data["model"] = generator
-                    url = lib_config["generators"][generator]["url"]
+                    url = self._gen_url(generator)
                     response = http_post(url, data)
                 except Exception as e:
                     raise e

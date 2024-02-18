@@ -7,21 +7,23 @@ from PIL import Image
 import base64
 from io import BytesIO
 
-
 class GGG:
     client = None
 
+    def __init__(self,config_path=None):
+        self.config_path = config_path
+
     def __call__(self, category, **model_params):
         if category.lower() == "ttt":
-            self.client = TTTClient()
+            self.client = TTTClient(self.config_path)
             return self.client(**model_params)
         elif category.lower() == "ttt-long":
-            self.client = TTTClient()
+            self.client = TTTClient(self.config_path)
             generator = model_params.pop("generator", None)
             generator = "mistral7b_128k-exllama"
             return self.client(generator, **model_params)
         elif category.lower() == "stt":
-            self.client = STTClient()
+            self.client = STTClient(self.config_path)
 
             if "file_path" in model_params:
                 file_path = model_params.pop("file_path", None)
@@ -33,10 +35,10 @@ class GGG:
 
             return self.client(**model_params)
         elif category.lower() == "tts":
-            self.client = TTSClient()
+            self.client = TTSClient(self.config_path)
             return self.client(**model_params)
         elif category.lower() == "itt":
-            self.client = ITTClient()
+            self.client = ITTClient(self.config_path)
             messages = None
 
             if "messages" in model_params:
@@ -90,10 +92,10 @@ class GGG:
                 ]
                 return self.client(messages=messages, **model_params)
         elif category.lower() == "index":
-            self.client = RAGClient()
+            self.client = RAGClient(self.config_path)
             return self.client.index_file(**model_params)
         elif category.lower() == "retrieve":
-            self.client = RAGClient()
+            self.client = RAGClient(self.config_path)
             return self.client.retrieve(**model_params)
         else:
             raise Exception(f"Unknown category: {category}")

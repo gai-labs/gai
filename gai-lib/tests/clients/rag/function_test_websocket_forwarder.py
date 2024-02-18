@@ -9,14 +9,14 @@ from gai.common.StatusUpdater import StatusUpdater
 '''
 This can work as a web socket reverse proxy service for RAG status updates.
 Clients are connected to this via a websocket at ws://localhost:12032/ws.
-The service listens to the RAG status at ws://localhost:12031/ws and forwards updates to the client.
+The service listens to the RAG status at the remote host wss://gaigaio.ai/api/gen/v1/rag/ws and forwards updates to the client.
 '''
 
 status_updater = StatusUpdater()
 
 # Part 1 - Start listener
 
-listener = StatusListener("ws://localhost:12031/ws")
+listener = StatusListener("wss://gaiaio.ai/api/gen/v1/rag/ws")
 
 # This callback is used by the listener to broadcast
 # the status to the client

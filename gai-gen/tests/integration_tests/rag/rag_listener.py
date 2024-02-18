@@ -7,5 +7,6 @@ from gai.common.StatusListener import StatusListener
 if __name__ == "__main__":
     server_uri = "ws://localhost:12031/ws"
     listener = StatusListener(server_uri)
-    def callback(status): return print(f"Callback received status: {status}")
+    def callback(message): 
+        return print(f"Callback: message={message}")
     asyncio.run(listener.listen(callback=callback))

@@ -4,12 +4,15 @@ from gai.common.http_utils import http_post
 from gai.common.image_utils import base64_to_imageurl
 from gai.lib.ttt.OpenAIChunkWrapper import OpenAIChunkWrapper
 from gai.common.generators_utils import chat_string_to_list
-API_BASEURL = ConfigHelper.get_api_baseurl()
+from gai.lib.ClientBase import ClientBase
+from gai.common.logging import getLogger
+logger = getLogger(__name__)
 
-lib_config = ConfigHelper.get_lib_config()
-base_url = lib_config["gai_url"]
+class ITTClient(ClientBase):
 
-class ITTClient:
+    def __init__(self, config_path=None):
+        super().__init__(config_path)
+        logger.debug(f'base_url={self.base_url}')
 
     def __call__(self, generator=None, messages=None, stream=True, **generator_params):
         if generator == "openai-vision":
@@ -29,8 +32,8 @@ class ITTClient:
             **generator_params
         }
 
-        url = lib_config["generators"][generator]["url"]
-        response = http_post(f"{base_url}/{url}", data)
+        url = self._gen_url(generator=generator)
+        response = http_post(url, data)
         if not stream:
             response.decode = lambda: response.json(
             )["choices"][0]["message"]["content"]

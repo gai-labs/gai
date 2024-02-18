@@ -122,12 +122,14 @@ NOTSET = logging.NOTSET
 
 def get_loglevel():
     log_level = "INFO"
+    # Get from config
+
+    # Get from environment
     if "LOG_LEVEL" in os.environ:
         log_level = os.environ["LOG_LEVEL"]
     if log_level not in ["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", "NOTSET"]:
         raise Exception(f"Invalid log_level={log_level}")
     log_level = getattr(logging, log_level.upper())
-    print(f"get_loglevel: log_level={log_level}")
     return log_level
 
 global_log_level = None

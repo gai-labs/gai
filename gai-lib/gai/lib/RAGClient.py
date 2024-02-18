@@ -7,15 +7,21 @@ from gai.common.http_utils import http_post, http_delete,http_get
 from gai.common.logging import getLogger
 logger = getLogger(__name__)
 import asyncio
+from gai.lib.ClientBase import ClientBase
 
-lib_config = ConfigHelper.get_lib_config()
-base_url = lib_config["gai_url"]
+class RAGClient(ClientBase):
 
-class RAGClient:
+    def __init__(self,config_path=None):
+        super().__init__(config_path)
+        self.base_url = os.path.join(
+            self.config["gai_url"], 
+            self.config["generators"]["rag"]["url"].lstrip('/'))
+        logger.debug(f'base_url={self.base_url}')
 
     # Provides an updater to get chunk indexing status
     # NOTE: The update is only relevant if this library is used in a FastAPI application with a websocket connection
     async def index_file_async(self, collection_name, file_path, metadata={"source": "unknown"}, progress_updater=None):
+        url=os.path.join(self.base_url,"index-file")
 
         # We will assume file ending with *.pdf to be PDF but this check should be done before the call.
         mode = 'rb' if file_path.endswith('.pdf') else 'r'
@@ -25,8 +31,7 @@ class RAGClient:
                 "metadata": (None, json.dumps(metadata), "application/json"),
                 "collection_name": (None, collection_name, "text/plain")
             }
-            url = lib_config["generators"]["rag-index-file"]["url"]
-            response = http_post(url=base_url+url, files=files)
+            response = http_post(url=url, files=files)
 
         # Callback for progress update (returns a number between 0 and 100)
         if progress_updater:
@@ -58,6 +63,7 @@ class RAGClient:
 
     # synchronous version of index_file_async
     def index_file(self, collection_name, file_path, metadata={"source": "unknown"}, progress_updater=None):
+        url = os.path.join(self.base_url,"index-file")
 
         # We will assume file ending with *.pdf to be PDF but this check should be done before the call.
         mode = 'rb' if file_path.endswith('.pdf') else 'r'
@@ -67,8 +73,7 @@ class RAGClient:
                 "metadata": (None, json.dumps(metadata), "application/json"),
                 "collection_name": (None, collection_name, "text/plain")
             }
-            url = lib_config["generators"]["rag-index-file"]["url"]
-            response = http_post(url=base_url+url, files=files)
+            response = http_post(url=url, files=files)
 
         # Callback for progress update (returns a number between 0 and 100)
         if progress_updater:
@@ -100,6 +105,7 @@ class RAGClient:
         return json.loads(response.text)
 
     def retrieve(self, collection_name, query_texts, n_results=None):
+        url = os.path.join(self.base_url,"retrieve")
         data = {
             "collection_name": collection_name,
             "query_texts": query_texts
@@ -107,35 +113,35 @@ class RAGClient:
         if n_results:
             data["n_results"] = n_results
 
-        url = lib_config["generators"]["rag-retrieve"]["url"]
-        response = http_post(base_url+url, data=data)
+        response = http_post(url, data=data)
         return response
 
     # Database Management
 
     def delete_collection(self, collection_name):
-        url = lib_config["generators"]["rag-collection"]["url"]
-        response = http_delete(f"{base_url}/{url}/{collection_name}")
+        url = os.path.join(self.base_url,"collection",collection_name)
+        logger.info(f"RAGClient.delete_collection: Deleting collection {url}")
+        response = http_delete(url)
         return json.loads(response.text)
 
     def list_collections(self):
-        url = lib_config["generators"]["rag-collections"]["url"]
-        response = http_get(f"{base_url}/{url}")
+        url = os.path.join(self.base_url,"collections")
+        response = http_get(url)
         return json.loads(response.text)
 
     def list_documents(self,collection_name):
-        url = lib_config["generators"]["rag-collection"]["url"]
-        response = http_get(f"{base_url}/{url}/{collection_name}")
+        url = os.path.join(self.base_url,"collection",collection_name)
+        response = http_get(url)
         return json.loads(response.text)
     
     def get_document(self,doc_id):
-        url = lib_config["generators"]["rag-document"]["url"]
-        response = http_get(f"{base_url}/{url}/{doc_id}")
+        url = os.path.join(self.base_url,"document",doc_id)
+        response = http_get(url)
         return json.loads(response.text)
 
     def delete_document(self,doc_id):
-        url = lib_config["generators"]["rag-document"]["url"]
-        response = http_delete(f"{base_url}/{url}/{doc_id}")
+        url = os.path.join(self.base_url,"document",doc_id)
+        response = http_delete(url)
         return json.loads(response.text)
 
 

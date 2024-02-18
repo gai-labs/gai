@@ -109,23 +109,8 @@ generators:
     llava-transformers:
         type: itt
         url: "/v1/vision/completions"
-    rag-index-file:
-        url: "/v1/rag/index-file"
-        env:
-            gai_api_key: "gai_api_key"
-    rag-retrieve:
-        url: "/v1/rag/retrieve"
-        env:
-            gai_api_key: "gai_api_key"
-    rag-collections:
-        url: "/v1/rag/collections"
-        env:
-            gai_api_key: "gai_api_key"
-    rag-collection:
-        url: "/v1/rag/collection"
-        env:
-            gai_api_key: "gai_api_key"
-    rag-document:
-        url: "/v1/rag/document"
+    rag:
+        type: rag
+        url: "/v1/rag"
         env:
             gai_api_key: "gai_api_key"
