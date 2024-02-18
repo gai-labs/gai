@@ -23,7 +23,7 @@ setup(
     version=VERSION,
     author="kakkoii1337",
     author_email="kakkoii1337@gmail.com",
-    packages=find_packages(exclude=["tests*","gai.gen.api"]),
+    packages=find_packages(exclude=["tests*","gai.api"]),
     description = """Gai/Gen: Multi-Modal Wrapper Library for Local LLM. The library is designed to provide a simplified and unified interface for seamless switching between multi-modal open source language models on a local machine and OpenAI APIs.""",
     long_description=README,
     long_description_content_type="text/markdown",

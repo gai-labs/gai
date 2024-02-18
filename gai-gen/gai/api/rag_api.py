@@ -1,9 +1,11 @@
+import uuid
+from gai.api.errors import InternalError
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
 from sqlalchemy.exc import IntegrityError as SqlAlchemyIntegrityError
 from sqlite3 import IntegrityError as Sqlite3IntegrityError
 
-from fastapi import FastAPI, Body, Form, File, UploadFile
+from fastapi import FastAPI, Body, Form, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
 
@@ -16,12 +18,12 @@ load_dotenv()
 import os
 import json
 
-from gai.gen.api.globals import status_updater
-from gai.gen.api.status_update_router import status_update_router
+from gai.api.globals import status_updater
+from gai.api.status_update_router import status_update_router
 from gai.gen.rag import RAG
 from gai.gen import Gaigen
 from gai.common.PDFConvert import PDFConvert
-from gai.gen.api.errors import *
+from gai.api.errors import *
 
 # Configure Dependencies
 dependencies.configure_logging()
@@ -115,22 +117,19 @@ async def index_file(collection_name: str = Form(...), file: UploadFile = File(.
         })
     except (SqlAlchemyIntegrityError, Sqlite3IntegrityError) as e:
         if "UNIQUE constraint failed: IndexedDocumentChunks.Id" in str(e):
-            return JSONResponse(status_code=400, content={
+            logger.error(f"rag_api.index_file: {str(e)}")
+            raise HTTPException(status_code=400, detail={
                 "type": "error", 
                 "code": "duplicate_chunk", 
                 "message": "A document with identical chunk is found."
             })
-        return JSONResponse(status_code=500, content={
-            "type": "error", 
-            "code": "unexpected_error", 
-            "message": f"An unexpected error occurred: {str(e)}."
-        })        
+        id = str(uuid.uuid4())
+        logger.error(f"rag_api.index_file: {id} {str(e)}")
+        return InternalError(id)
     except Exception as e:
-        return JSONResponse(status_code=500, content={
-            "type": "error", 
-            "code": "unexpected_error", 
-            "message": f"An unexpected error occurred: {str(e)}."
-        })        
+        id = str(uuid.uuid4())
+        logger.error(f"rag_api.index_file: {id} {str(e)}")
+        return InternalError(id)
 
 ### ----------------- RETRIEVAL ----------------- ###
 
@@ -150,23 +149,9 @@ async def retrieve(request: QueryRequest = Body(...)):
         logger.debug("main.retrieve=", result)
         return result
     except Exception as e:
-        return JSONResponse(status_code=500, content={
-            "type": "error", 
-            "code": "unexpected_error", 
-            "message": f"An unexpected error occurred: {str(e)}."
-        })
-
-# # Get a document by its ID
-# # GET /gen/v1/rag/retrieve?collection_name
-
-
-# @app.get("/gen/v1/rag/retrieve/{collection_name}/{id}")
-# def get_document_by_id(self, collection_name, id):
-#     try:
-#         collection = self._get_collection(collection_name)
-#         return collection.get(ids=[id])
-#     except Exception as e:
-#         return InternalError(str(e))
+        id = str(uuid.uuid4())
+        logger.error(f"rag_api.retrieve: {id} {str(e)}")
+        return InternalError(id)
 
 ### ----------------- COLLECTIONS ----------------- ###
 
@@ -175,6 +160,8 @@ async def retrieve(request: QueryRequest = Body(...)):
 async def delete_collection(collection_name):
     try:
         if collection_name not in [collection.name for collection in RAG.list_collections()]:
+            logger.warning(f"rag_api.delete_collection: Collection with name={collection_name} not found.")
+            # Bypass the error handler and return a 404 directly            
             return JSONResponse(status_code=404, content={
                 "type": "error", 
                 "code": "collection_not_found", 
@@ -187,11 +174,9 @@ async def delete_collection(collection_name):
             "count": len(after)
         })
     except Exception as e:
-        return JSONResponse(status_code=500, content={
-            "type": "error", 
-            "code": "unexpected_error", 
-            "message": f"An unexpected error occurred: {str(e)}."
-        })
+        id = str(uuid.uuid4())
+        logger.error(f"rag_api.delete_collection: {id} {str(e)}")
+        return InternalError(id)
 
 # GET /gen/v1/rag/collections
 @app.get("/gen/v1/rag/collections")
@@ -202,11 +187,9 @@ async def list_collections():
             "collections": collections
         })
     except Exception as e:
-        return JSONResponse(status_code=500, content={
-            "type": "error", 
-            "code": "unexpected_error", 
-            "message": f"An unexpected error occurred: {str(e)}."
-        })
+        id = str(uuid.uuid4())
+        logger.error(f"rag_api.list_collections: {id} {str(e)}")
+        return InternalError(id)
 
 # GET /gen/v1/rag/collection/{collection_name}
 @app.get("/gen/v1/rag/collection/{collection_name}")
@@ -218,11 +201,9 @@ async def list_documents(collection_name):
             "documents": formatted
         })        
     except Exception as e:
-        return JSONResponse(status_code=500, content={
-            "type": "error", 
-            "code": "unexpected_error", 
-            "message": f"An unexpected error occurred: {str(e)}."
-        })
+        id = str(uuid.uuid4())
+        logger.error(f"rag_api.list_documents: {id} {str(e)}")
+        return InternalError(id)
 
 # GET /gen/v1/rag/document/{document_id}
 @app.get("/gen/v1/rag/document/{document_id}")
@@ -230,6 +211,8 @@ async def get_document(document_id):
     try:
         document = RAG.get_document(document_id=document_id)
         if document is None:
+            logger.warning(f"rag_api.get_documents: Document with Id={document_id} not found.")
+            # Bypass the error handler and return a 404 directly
             return JSONResponse(status_code=404, content={
                 "type": "error", 
                 "code": "document_not_found", 
@@ -240,11 +223,9 @@ async def get_document(document_id):
             "document": jsonable_encoder(document)
         })
     except Exception as e:
-        return JSONResponse(status_code=500, content={
-            "type": "error", 
-            "code": "unexpected_error", 
-            "message": f"An unexpected error occurred: {str(e)}."
-        })
+        id = str(uuid.uuid4())
+        logger.error(f"rag_api.get_document: {id} {str(e)}")
+        return InternalError(id)
 
 # POST /gen/v1/rag/document
 class UpdateDocumentRequest(BaseModel):
@@ -262,6 +243,8 @@ async def update_document(req: UpdateDocumentRequest = Body(...)):
     try:
         doc = RAG.get_document(document_id=req.Id)
         if doc is None:
+            logger.warning(f"Document with Id={req.Id} not found.")
+            # Bypass the error handler and return a 404 directly
             return JSONResponse(status_code=404, content={
                 "type": "error", 
                 "code": "document_not_found", 
@@ -274,11 +257,9 @@ async def update_document(req: UpdateDocumentRequest = Body(...)):
             "document": updated_doc
         })
     except Exception as e:
-        return JSONResponse(status_code=500, content={
-            "type": "error", 
-            "code": "unexpected_error", 
-            "message": f"An unexpected error occurred: {str(e)}."
-        })
+        id = str(uuid.uuid4())
+        logger.error(f"rag_api.update_document: {id} {str(e)}")
+        return InternalError(id)
 
 # DELETE /gen/v1/rag/document/{document_id}
 @app.delete("/gen/v1/rag/document/{document_id}")
@@ -286,6 +267,8 @@ async def delete_document(document_id):
     try:
         doc = RAG.get_document(document_id=document_id)
         if doc is None:
+            logger.warning(f"Document with Id={document_id} not found.")
+            # Bypass the error handler and return a 404 directly
             return JSONResponse(status_code=404, content={
                 "type": "error", 
                 "code": "document_not_found", 
@@ -293,16 +276,13 @@ async def delete_document(document_id):
             })
         
         RAG.delete_document(document_id=document_id)
-        
         return JSONResponse(status_code=200, content={
             "message": f"Document with id {document_id} deleted successfully"
         })
     except Exception as e:
-        return JSONResponse(status_code=500, content={
-            "type": "error", 
-            "code": "unexpected_error", 
-            "message": f"An unexpected error occurred: {str(e)}."
-        })
+        id = str(uuid.uuid4())
+        logger.error(f"rag_api.delete_document: {id} {str(e)}")
+        return InternalError(id)
 
 # -----------------------------------------------------------------------------------------------------------------
 

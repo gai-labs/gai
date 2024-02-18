@@ -5,6 +5,17 @@ from gai.common.logging import getLogger
 logger = getLogger(__name__)
 import json
 
+'''
+This class carries the websocket that bridges the RAG's output
+to the API server.
+
+On one end, it is connected to the output from RAG.index_async() 
+which publishes the number of chunks processed via update_progress().
+
+On the other end, it is connected to status_update_router API which 
+broadcasts the status to clients connected to '/ws'.
+'''
+
 class StatusUpdater:
 
     def __init__(self):

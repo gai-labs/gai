@@ -1,3 +1,4 @@
+import uuid
 from fastapi.responses import JSONResponse
 
 class ErrorResponse(JSONResponse):
@@ -28,9 +29,9 @@ class ModelServiceMismatchError(ErrorResponse):
         )
 
 class InternalError(ErrorResponse):
-    def __init__(self, message):
+    def __init__(self, error_id):
         super().__init__(
             status_code=500,
-            code="internal_error",
-            message=message
+            code=error_id,
+            message="An unexpected error occurred. Please try again later."
         )

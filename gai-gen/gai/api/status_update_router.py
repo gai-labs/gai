@@ -1,6 +1,6 @@
 import asyncio
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from gai.gen.api.globals import status_updater
+from gai.api.globals import status_updater
 from gai.common.logging import getLogger
 logger = getLogger(__name__)
 

@@ -39,7 +39,8 @@ class ExLlama_TTT:
         "max_new_tokens",
         "stream",
         "tools",
-        "tool_choice"
+        "tool_choice",
+        "seed",
     ]
 
     def __init__(self, gai_config):
@@ -132,7 +133,6 @@ class ExLlama_TTT:
             "beams"] is not None else self.client.settings.beams
         self.client.settings.beam_length = model_params["beam_length"] if "beam_length" in model_params and model_params[
             "beam_length"] is not None else self.client.settings.beam_length
-
 
     def _preprocessing(self,prompt,**model_params):
         # Map "max_tokens" to "max_new_tokens" to be compatible with OpenAI's API. We do not want to filter this off.

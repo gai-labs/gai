@@ -1,6 +1,6 @@
 from fastapi import FastAPI, UploadFile,File
 from dotenv import load_dotenv
-from gai.gen.api.errors import *
+from gai.api.errors import *
 load_dotenv()
 
 # Configure Dependencies
