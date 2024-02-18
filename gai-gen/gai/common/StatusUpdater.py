@@ -37,7 +37,7 @@ class StatusUpdater:
             if self.websocket.client_state == WebSocketState.DISCONNECTED:
                 logger.info("rag.index: websocket is disconnected.")
                 return
-            await asyncio.create_task(self.websocket.send_json({'status': self.status}))
+            await asyncio.create_task(self.websocket.send_json({'progress': self.status}))
 
     def get_status(self):
         return self.status

@@ -3,8 +3,9 @@ import requests
 import json
 import gai.common.ConfigHelper as ConfigHelper
 from fastapi import WebSocketDisconnect
-from gai.common.http_utils import http_post, http_delete,http_get
+from gai.common.http_utils import http_post, http_delete,http_get,http_delete_async
 from gai.common.logging import getLogger
+from gai.common._exceptions import HttpException
 logger = getLogger(__name__)
 import asyncio
 from gai.lib.ClientBase import ClientBase
@@ -121,7 +122,25 @@ class RAGClient(ClientBase):
     def delete_collection(self, collection_name):
         url = os.path.join(self.base_url,"collection",collection_name)
         logger.info(f"RAGClient.delete_collection: Deleting collection {url}")
-        response = http_delete(url)
+        try:
+            response = http_delete(url)
+        except HttpException as e:
+            if e.code == 'collection_not_found':
+                return {"count":0}
+            logger.error(e)
+            raise e
+        return json.loads(response.text)
+
+    async def delete_collection_async(self, collection_name):
+        url = os.path.join(self.base_url,"collection",collection_name)
+        logger.info(f"RAGClient.delete_collection: Deleting collection {url}")
+        try:
+            response = await http_delete_async(url)
+        except HttpException as e:
+            if e.code == 'collection_not_found':
+                return {"count":0}
+            logger.error(e)
+            raise e
         return json.loads(response.text)
 
     def list_collections(self):

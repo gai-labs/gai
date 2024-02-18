@@ -1,3 +1,4 @@
+import asyncio
 from gai.common._exceptions import HttpException
 from urllib.parse import urlparse
 import os
@@ -15,16 +16,87 @@ def is_url(s):
 
 # Check if URL contains a file extension (e.g. .pdf, .jpg, .png, etc.)
 
-
 def has_extension(url):
     parsed_url = urlparse(url)
     _, ext = os.path.splitext(parsed_url.path)
     return bool(ext)
 
+import json
+
+def _handle_failed_response(response):
+    error_code = "unknown"
+    if response.status_code == 401:
+        raise HttpException(status_code=401, code=error_code, message="Unauthorized", url=response.url)
+
+    content_type = response.headers.get("Content-Type")
+    if content_type and "application/json" in content_type:
+        error_data = response.json()
+    else:
+        error_data = response.text()
+
+    e = Exception()
+    e.response = response
+    e.status = response.status_code
+
+    if isinstance(error_data, str):
+        raise HttpException(status_code=response.status_code, code=error_code, message=error_data, url=response.url)
+    
+    if 'detail' in error_data:
+
+        if isinstance(error_data['detail'], str):
+            raise HttpException(status_code=response.status_code, code=error_code, message=error_data['detail'], url=response.url)
+
+        if 'code' in error_data['detail']:
+            error_code = error_data['detail']['code']
+
+        if 'message' in error_data['detail'] and isinstance(error_data['detail']['message'], str):
+            raise HttpException(status_code=response.status_code, code=error_code, message=error_data['detail']['message'], url=response.url)
+
+    if 'code' in error_data:
+        error_code = error_data['code']
+        if 'message' in error_data:
+            raise HttpException(status_code=response.status_code, code=error_code, message=error_data['message'], url=response.url)    
+        
+    raise HttpException(status_code=response.status_code, code=error_code, message=json.dumps(error_data), url=response.url)    
+
+async def _handle_failed_response_async(response):
+    error_code = "unknown"
+    if response.status == 401:
+        raise HttpException(status_code=401, code=error_code, message="Unauthorized", url=response.url)
+
+    content_type = response.headers.get("Content-Type")
+    if content_type and "application/json" in content_type:
+        error_data = await response.json()
+    else:
+        error_data = await response.text()
+
+    e = Exception()
+    e.response = response
+    e.status = response.status
+
+    if isinstance(error_data, str):
+        raise HttpException(status_code=response.status, code=error_code, message=error_data, url=response.url)
+
+    if 'detail' in error_data:
+
+        if isinstance(error_data['detail'], str):
+            raise HttpException(status_code=response.status_code, code=error_code, message=error_data['detail'], url=response.url)
+
+        if 'code' in error_data['detail']:
+            error_code = error_data['detail']['code']
+
+        if 'message' in error_data['detail'] and isinstance(error_data['detail']['message'], str):
+            raise HttpException(status_code=response.status_code, code=error_code, message=error_data['detail']['message'], url=response.url)
+
+    if 'code' in error_data:
+        error_code = error_data['code']
+        if 'message' in error_data:
+            raise HttpException(status_code=response.status_code, code=error_code, message=error_data['message'], url=response.url)    
+        
+    raise HttpException(status_code=response.status_code, code=error_code, message=json.dumps(error_data), url=response.url)    
 
 async def http_post_async(url, data):
     return httppost_async(url, data)
-
 
 async def httppost_async(url, data):
     headers = {"Content-Type": "application/json"}
@@ -36,14 +108,7 @@ async def httppost_async(url, data):
             if response.status == 200:
                 return response
             else:
-                try:
-                    error_object = response.json()
-                    code = error_object.get("code", "unknown")
-                    message = error_object.get("message", "unknown")
-                except Exception as e2:
-                    code = "unknown"
-                    message = response.text()
-                raise HttpException(response.status_code, code, message, url)
+                await _handle_failed_response_async(response)
         except httpx.HTTPStatusError as e:
             raise Exception("Connection Error. Is the service Running?")
 
@@ -71,22 +136,7 @@ def httppost(url, data=None, files=None):
         if response.status_code == 200:
             return response
         else:
-            try:
-                error_object = response.json()
-                code = error_object.get("code", "unknown")
-                if (code == "unknown"):
-                    code = response.reason.lower().replace(' ', '_')
-                message = str(error_object)
-                if (message == "unknown"):
-                    message = response.text
-            except Exception as e2:
-                if response.reason:
-                    code = response.reason.lower().replace(' ', '_')
-                    message = response.reason
-                else:
-                    code = response.status_code
-                    message = response.text
-            raise HttpException(response.status_code, code, message, url)
+            _handle_failed_response(response)
 
     except requests.exceptions.ConnectionError as e:
         raise Exception("Connection Error. Is the service Running?")
@@ -95,21 +145,18 @@ def httppost(url, data=None, files=None):
 def http_get(url):
     return httpget(url)
 
-
 def httpget(url):
     try:
         response = requests.get(url)
         if response.status_code == 200:
             return response
         else:
-            raise Exception(f"httpget: Error={response.text}")
+            _handle_failed_response(response)
     except requests.exceptions.ConnectionError as e:
         raise Exception("Connection Error. Is the service Running?")
 
-
 async def http_get_async(url):
     return httpget_async(url)
-
 
 async def httpget_async(url):
     async with httpx.AsyncClient() as session:
@@ -118,14 +165,14 @@ async def httpget_async(url):
                 if response.status == 200:
                     return response                      # Returning the data
                 else:
-                    raise Exception(f"httpget_async: Error={await response.text()}")
+                    await _handle_failed_response_async(response)
         except httpx.HTTPStatusError as e:
             raise Exception("Connection Error. Is the service Running?")
 
+### DELETE method
 
 def http_delete(url):
     return httpdelete(url)
-
 
 def httpdelete(url):
     try:
@@ -133,14 +180,28 @@ def httpdelete(url):
         if response.status_code == 200:
             return response
         else:
-            raise Exception(f"httpdelete: Error={response.text}")
+            _handle_failed_response(response)
     except requests.exceptions.ConnectionError as e:
         raise Exception("Connection Error. Is the service Running?")
 
+async def http_delete_async(url):
+    return httpdelete_async(url)
+
+async def httpdelete_async(url):
+    async with httpx.AsyncClient() as session:
+        try:
+            response = await session.delete(url)
+            if response.status_code == 200:
+                return response
+            else:
+                await _handle_failed_response_async(response)
+        except httpx.HTTPStatusError as e:
+            raise Exception("Connection Error. Is the service Running?")
+
+### PUT method
 
 def http_put(url):
     return httpput(url)
-
 
 def httpput(url):
     try:
@@ -148,6 +209,20 @@ def httpput(url):
         if response.status_code == 200:
             return response
         else:
-            raise Exception(f"httpput: Error={response.text}")
+            _handle_failed_response(response)
     except requests.exceptions.ConnectionError as e:
         raise Exception("Connection Error. Is the service Running?")
+
+async def http_put_async(url):
+    return httpput_async(url)
+
+async def httpput_async(url):
+    async with httpx.AsyncClient() as session:
+        try:
+            response = await session.put(url)
+            if response.status_code == 200:
+                return response
+            else:
+                await _handle_failed_response_async(response)
+        except httpx.HTTPStatusError as e:
+            raise Exception("Connection Error. Is the service Running?")
