@@ -102,7 +102,8 @@ class RAGClient(ClientBase):
                 logger.error(
                     f"RetrievalGeneration.index_async: Update websocket progress failed. Error={str(e)}")
                 pass
-
+        
+        # {document_id: "document_id"}
         return json.loads(response.text)
 
     def retrieve(self, collection_name, query_texts, n_results=None):
