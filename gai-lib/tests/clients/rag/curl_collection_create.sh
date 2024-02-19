@@ -1,1 +1,0 @@
-curl -X PUT https://gaiaio.ai/api/gen/v1/rag/collection/demo

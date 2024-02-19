@@ -4,6 +4,8 @@ title: Gai/Gen Introduction
 sidebar_position: 1
 ---
 
+import ColoredText from "@site/src/components/ColoredText";
+
 ## Gai/Gen: Local LLM Library
 
 Gai/Gen is a library optimized for a select number of open source language models that can serve as viable alternatives to proprietary ones. This makes it easier to create quality LLM applications with fewer resources.
@@ -43,64 +45,57 @@ To avoid dependency conflicts, the wrappers are organised under the `gen` folder
 
     -   CUDA Toolkit 11.8 is required for the GPU accelerated models. Run `nvcc --version` to check if CUDA Toolkit is installed. Refer here https://gist.github.com/kakkoii1337/8a8d4d0bc71fa9c099a683d1601f219e if you need guidance.
 
-## 3. Using Gai as a Library
+## 3. Setting up virtual environments
 
-Using Gai as a library requires you to install the right category of package but gives you more control over your interaction with Gaigen.
-It is highly recommended that you install each category in separate virtual environments.
+Every category of Gai has its own package dependencies due to the particular requirements for each model. It is highly recommended to install each category in separate virtual environments using virtual environment manager such as `conda` or `venv`. For the purpose of this guide, we will use `conda` to create virtual environments.
+
+The following table shows the recommended virtual environment names and the corresponding commands to install the Gai package.
+
+| Category | Virtual Environment  | Command                                                                                                            |
+| -------- | -------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| ttt      | `conda activate TTT` | `pip install "gai-lib-gen[TTT]"`                                                                                   |
+| tts      | `conda activate TTS` | `pip install "gai-lib-gen[TTS]"`                                                                                   |
+| stt      | `conda activate STT` | `pip install "gai-lib-gen[STT]"`                                                                                   |
+| itt      | `conda activate ITT` | `pip install "gai-lib-gen[ITT]"&& git clone https://github.com/haotian-liu/LLaVA && cd LLaVA && pip install -e . ` |
+| rag      | `conda activate RAG` | `pip install "gai-lib-gen[RAG]"`                                                                                   |
+
+For example, setting up the virtual environment for the `ttt` category may look like this:
 
 ```bash
-# Install library for text-to-text generation
-pip install "gai-lib-gen[TTT]"
-
-# Install library for text-to-speech generation
-pip install "gai-lib-gen[TTS]"
-
-# Install library for speech-to-text generation
-pip install "gai-lib-gen[STT]"
-
-# Install library for image-to-text generation (install LLaVA separately)
-pip install "gai-lib-gen[ITT]"
-git clone https://github.com/haotian-liu/LLaVA && cd LLaVA && pip install -e .
-
-# Install library for retrieval-augmented generation
-pip install "gai-lib[RAG]"
+conda create -n TTT python=3.10.10 -y
+conda activate TTT
+pip install gai-lib-gen[TTT]
 ```
 
-### 6.1 Configuration
+## 4. Setting up configuration and application directory
 
-**Step 1.** Create a `.gairc` file in your home directory. This file contains the default configurations for Gai.
+The application directory for Gai is at `~/.gai` by default and can be changed by setting the `app_dir` variable in the `.gairc` file.
 
-```bash
+The `.gairc` file is stored in your home directory and contains information such as location of the application directory, `app_dir`.
+
+```json
 {
-    "app_dir": "~/gai"
+    "app_dir": "~/.gai"
 }
 ```
 
-**Step 2.** Create a `/gai` directory.
+You can create the ~/.gai directory before running anything else.
+
+Copy `gai.json` from this repository into `~/.gai`. This file contains the configurations for models and their respective loaders.
+
+:::note
+In Gai/Gen, the config file uses JSON format. The file is located at `~/.gai/gai.json`. The configuration describes how to load each Gai Instance.
+
+In Gai/Lib, the config file uses YAML format. The file is located at `~/.gai/gai.yaml`. The configuration describes how to locate the Gai Instances.
+:::
+
+## 5. Downloading models
+
+Models are downloaded into `~/.gai/models` directory.
 
 ```bash
-mkdir ~/gai
+mkdir ~/.gai/models
 ```
-
-Copy `gai.json` from this repository into `~/gai`. This file contains the configurations for models and their respective loaders.
-
-**Step 3.** Create `/gai/models` directory.
-
-```bash
-mkdir ~/gai/models
-```
-
-The final user directory structure looks like this:
-
-```bash
-home
-├── gai
-│   ├── gai.json
-│   └── models
-└── .gairc
-```
-
-### 6.2 Downloading Models
 
 When downloading from huggingface model hub, it is recommended to use the [huggingface CLI](https://huggingface.co/docs/huggingface_hub/guides/download#download-from-the-cli).
 You will need to install the CLI first.
@@ -133,7 +128,20 @@ huggingface-cli download TheBloke/Mistral-7B-Instruct-v0.1-GGUF \
                 --local-dir-use-symlinks False
 ```
 
-### 6.3 API Key
+## 6. Final Structure
+
+The final user directory structure looks like this:
+
+```bash
+home
+├── .gai
+│   ├── gai.json
+│   ├── gai.yaml
+│   └── models
+└── .gairc
+```
+
+## 7. API Key
 
 -   All API keys should be stored in a `.env` file in the root directory of the project.  
     For example,
@@ -143,7 +151,9 @@ huggingface-cli download TheBloke/Mistral-7B-Instruct-v0.1-GGUF \
     ANTHROPIC_API_KEY=<--replace-with-your-api-key-->
     ```
 
-### 6.4 Quick Start
+## 8. Quick Start
+
+The quick start will walk through the process of setting up the virtual environment, installing the Gai package, setting up the API key, and running inferencing on GPT4 and Mistral7B.
 
 **Step 1. Install virtal environment and Gai**
 
@@ -197,19 +207,35 @@ response = gen.create(messages=[{'role':'USER','content':'Tell me a one paragrap
 print(response)
 ```
 
-## 7. Using Gai as a Service
+## 9. Using Gai as a Service
 
 Gai Service is meant to be a one-model-per-instance service. Unlike library, you cannot change the model during runtime.
 
 The easiest to run Gai Service is to use a Docker container. You will need to download the models into ~/gai/models and map the volume to the container. You can then start up a container and post REST API calls to following endpoints.
 
-### Endpoints
+You can enable swagger UI by setting the environment variable `SWAGGER_URL` to `/doc`.
+
+For example, to see the API specification of RAG, you can open the browser to `http://localhost:12031/doc`.
+
+![alt text](./imgs/swagger.png)
+
+## 10. Examples
+
+-   [Text-to-Text Generation (OpenAI GPT4 vs Open-Source Mistra7B)](/notebooks/gai-gen-TTT.ipynb)
+-   [Speech-to-Text Generation (OpenAI Whisper vs Open-Source Whisper)](/notebooks/gai-gen-STT.ipynb)
+-   [Text-to-Speech Generation (OpenAI Speech vs Open-Source xTTS)](/notebooks/gai-gen-TTS.ipynb)
+-   [Image-to-Text Generation (OpenAI Vision vs Open-Source Llava)](/notebooks/gai-gen-ITT.ipynb)
+-   [Retrieval Augmented Generation](/notebooks/gai-gen-RAG.ipynb)
+
+## 11. API Reference
 
 The following endpoints are only available for the category of models that you have installed.
 
-**- Text-to-Text (TTT)**  
-Endpoint: http://localhost:12031/gen/v1/chat/completions  
-Method: POST  
+### Text-to-Text (TTT)
+
+Endpoint: http://localhost:12031/gen/v1/chat/completions
+
+<ColoredText>POST</ColoredText>
 Type: Body
 
 | Name     | Type | Description                    | Default           |
@@ -219,9 +245,8 @@ Type: Body
 | stream   | bool | True, False                    | True              |
 | ...      |      | Hyperparameters based on model |                   |
 
-Note:
-
--   messages
+:::info
+messages
 
 ```json
 [
@@ -232,9 +257,13 @@ Note:
 ]
 ```
 
-**- Text-to-Speech (TTS)**  
-Endpoint: http://localhost:12031/gen/v1/audio/speech  
-Method: POST  
+:::
+
+### Text-to-Speech (TTS)
+
+Endpoint: http://localhost:12031/gen/v1/audio/speech
+
+<ColoredText>POST</ColoredText>
 Type: Body
 
 | Name     | Type | Description                    | Default |
@@ -246,9 +275,11 @@ Type: Body
 | stream   | bool | True, False                    | True    |
 | ...      |      | Hyperparameters based on model |         |
 
-**- Speech-to-Text**
-Endpoint: http://localhost:12031/gen/v1/audio/transcriptions  
-Method: POST  
+### Speech-to-Text (STT)
+
+Endpoint: http://localhost:12031/gen/v1/audio/transcriptions
+
+<ColoredText>POST</ColoredText>
 Type: Multipart Form-Data
 
 | Name  | Type | Description       | Default |
@@ -256,11 +287,12 @@ Type: Multipart Form-Data
 | model | str  | generator name    |         |
 | file  | file | audio file object |         |
 
-**- itt: Image-to-Text**
-Endpoint: http://localhost:12031/gen/v1/vision/completions  
-Method: POST
-Type: Body
-Parameters:
+### Image-to-Text (ITT)
+
+Endpoint: http://localhost:12031/gen/v1/vision/completions
+
+<ColoredText>POST</ColoredText>
+Type: Body Parameters:
 
 | Name     | Type | Description                    | Default |
 | -------- | ---- | ------------------------------ | ------- |
@@ -269,9 +301,8 @@ Parameters:
 | stream   | bool | True,False                     |         |
 | ...      |      | Hyperparameters based on model |         |
 
-Note:
-
--   messages format
+:::info
+messages format
 
 ```json
 [
@@ -291,12 +322,14 @@ Note:
 ]
 ```
 
-**- rag: Retrieval-Augmented Generation**
+:::
 
-a) Endpoint: http://localhost:12031/gen/v1/rag/index_file  
-Method: POST  
-Type: Multipart Form-Data
-Parameters:
+### Retrieval-Augmented Generation (RAG)
+
+a) Endpoint: http://localhost:12031/gen/v1/rag/index_file
+
+<ColoredText>POST</ColoredText>
+Type: Multipart Form-Data Parameters:
 
 | Name            | Type | Description                   | Default |
 | --------------- | ---- | ----------------------------- | ------- |
@@ -304,21 +337,13 @@ Parameters:
 | file            | file | the document to be indexed    |         |
 | metadata        | dict | metadata tied to the document |         |
 
-b) Endpoint: http://localhost:12031/gen/v1/rag/retrieve  
-Method: POST  
-Type: Body
-Parameters:
+b) Endpoint: http://localhost:12031/gen/v1/rag/retrieve
+
+<ColoredText>POST</ColoredText>
+Type: Body Parameters:
 
 | Name            | Type | Description                    | Default |
 | --------------- | ---- | ------------------------------ | ------- |
 | collection_name | str  | collection name in the store   |         |
 | query_texts     | str  | query                          |         |
 | n_results       | int  | no. of nearest result returned |         |
-
-## 8. Examples
-
--   [Text-to-Text Generation (OpenAI GPT4 vs Open-Source Mistra7B)](/notebooks/gai-gen-TTT.ipynb)
--   [Speech-to-Text Generation (OpenAI Whisper vs Open-Source Whisper)](/notebooks/gai-gen-STT.ipynb)
--   [Text-to-Speech Generation (OpenAI Speech vs Open-Source xTTS)](/notebooks/gai-gen-TTS.ipynb)
--   [Image-to-Text Generation (OpenAI Vision vs Open-Source Llava)](/notebooks/gai-gen-ITT.ipynb)
--   [Retrieval Augmented Generation](/notebooks/gai-gen-RAG.ipynb)

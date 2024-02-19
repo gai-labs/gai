@@ -166,7 +166,8 @@ class RAG:
         repo = RAG.get_repo()
         return repo.update_document(document)
 
-    # get from sqlite
+    # delete document and chunks from vector store and sqlite 
+    # NOTE: There will not be chunks shared by multiple documents because the document cannot be indexed if a chunk is already indexed
     @staticmethod
     def delete_document(document_id):
         repo = RAG.get_repo()
@@ -177,9 +178,12 @@ class RAG:
         collection_name = doc.CollectionName
         collection = vs.get_collection(collection_name)
         collection.delete(ids=[chunk.ChunkId for chunk in doc.chunks])
+        logger.debug(f"Deleted {len(doc.chunks)} chunks from collection {collection_name}")
 
         # delete from sqlite
         repo.delete_document(document_id)
+        logger.debug(f"Deleted doc {document_id} from db")
+
         return repo.get_document(document_id)
 
     # INDEXING
@@ -195,7 +199,7 @@ class RAG:
             raise error
         return collection
 
-    # Index chunk of text into vector store locally
+    # Index chunk of text into vector store locally. Used by index_async.
     def index_chunk(self, collection_name, chunk, path_or_url, metadata={"source": "unknown"}):
         try:
             chunks_dir = file_utils.get_chunk_dir(
@@ -215,11 +219,16 @@ class RAG:
                               data], ids=[chunk_id])
             return chunk_id
         except Exception as error:
-            logger.error(f"vector_store.index_chunk: error={error}")
+            logger.error(f"RAG.index_chunk: error={error}")
             raise error
 
-    # Split text in temp dir and index each chunk into vector store locally
+    # Split text in temp dir and index each chunk into vector store locally.
+    # Public. Used by rag_api and Gaigen.
     async def index_async(self, collection_name, text, path_or_url, metadata={"source": "unknown"}, chunk_size=None, chunk_overlap=None, status_updater=None):
+        if status_updater:
+            logger.info(
+                f"RAG.index_async: status_updater detected.")
+
         chunks = []
         try:
             if chunk_size is None:
@@ -235,21 +244,28 @@ class RAG:
             chunks = os.listdir(chunks_dir)
         except Exception as error:
             logger.error(
-                f"vector_store.index: Failed to split chunks. error={error}")
+                f"RAG.index_async: Failed to split chunks. error={error}")
             raise error
         ids = []
         count = len(chunks)
+        last_chunk = -1
         for i, chunk_id in tqdm(enumerate(chunks)):
             with open(os.path.join(chunks_dir, chunk_id), 'r') as f:
                 chunk = f.read()
             self.index_chunk(collection_name, chunk, chunks_dir, metadata)
             ids.append(chunk_id)
             logger.debug(
-                f"Indexed {i}/{count} chunk {chunk_id} into collection {collection_name}")
+                f"RAG.index_async: Indexed {i+1}/{count} chunk {chunk_id} into collection {collection_name}")
 
             # Callback for progress update
             if status_updater:
-                await status_updater.update_progress(i, len(chunks))
+                logger.debug(f"RAG.index_async: Send progress {i+1} to updater")
+                await status_updater.update_progress(i+1, count)
+
+        # Send stop token
+        if status_updater:
+            logger.debug("RAG.index_async: Sending stop token")
+            await status_updater.update_stop()
 
         # Update sqlite
         try:
@@ -270,11 +286,11 @@ class RAG:
             doc.IsActive = True
 
             doc_id = self.repo.create_document(doc, ids)
-            logger.debug(f"Indexed document {doc_id} into sqlite")
+            logger.debug(f"RAG.index_async: Indexed document {doc_id} into sqlite")
 
             return doc_id
         except Exception as error:
-            logger.error(f"vector_store.index: Failed to insert document into sqlite. error={error}")
+            logger.error(f"RAG.index_async: Failed to insert document into sqlite. error={error}")
             raise error
 
     # RETRIEVAL

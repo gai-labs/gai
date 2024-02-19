@@ -205,6 +205,8 @@ async def list_documents(collection_name):
         logger.error(f"rag_api.list_documents: {id} {str(e)}")
         return InternalError(id)
 
+### ----------------- DOCUMENTS ----------------- ###
+
 # GET /gen/v1/rag/document/{document_id}
 @app.get("/gen/v1/rag/document/{document_id}")
 async def get_document(document_id):
@@ -283,6 +285,15 @@ async def delete_document(document_id):
         id = str(uuid.uuid4())
         logger.error(f"rag_api.delete_document: {id} {str(e)}")
         return InternalError(id)
+
+### ----------------- CHUNKS ----------------- ###
+    
+# # DELETE /gen/v1/rag/chunks/document_id/{document_id}
+# @app.delete("/gen/v1/rag/chunks/document_id/{document_id}")
+# async def delete_chunks_by_document(document_id):
+
+
+
 
 # -----------------------------------------------------------------------------------------------------------------
 
