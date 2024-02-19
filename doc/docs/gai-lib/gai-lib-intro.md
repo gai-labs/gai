@@ -1,6 +1,6 @@
 ---
-id: gai-gen-intro
-title: Gai/Gen Introduction
+id: gai-lib-intro
+title: Gai/Lib Introduction
 sidebar_position: 1
 ---
 
@@ -141,7 +141,7 @@ for chunk in ggg(category="ttt",messages="user: Tell me a one paragraph story\na
 print("\n")
 ```
 
-![gai-lib-ttt-mistral7b](./docs/imgs/gai-lib-ttt-mistral7b.gif)
+![gai-lib-ttt-mistral7b](./imgs/gai-lib-ttt-mistral7b.gif)
 
 Chat using OpenAI GPT4
 
@@ -152,7 +152,7 @@ for chunk in ggg(category="ttt",generator="gpt-4",messages="user: Tell me a one 
 print("\n")
 ```
 
-![gai-lib-ttt-openai](./docs/imgs/gai-lib-ttt-openai.gif)
+![gai-lib-ttt-openai](./imgs/gai-lib-ttt-openai.gif)
 
 Chat using OpenAI's API
 
@@ -181,7 +181,7 @@ for chunk in response:
         print(chunk.choices[0].delta.content,end="",flush=True)
 ```
 
-## ![gai-lib-ttt-openai-api](./docs/imgs/gai-lib-ttt-openai-api.gif)
+![gai-lib-ttt-openai-api](./imgs/gai-lib-ttt-openai-api.gif)
 
 #### Function Call
 
@@ -326,7 +326,7 @@ play_audio(response)
 ```
 
 <audio controls>
-  <source src="./docs/audio/xtts.wav" type="audio/wav">
+  <source src="./docs/audio/xtts.wav" type="audio/wav" />
 Your browser does not support the audio element.
 </audio>
 
@@ -339,7 +339,7 @@ play_audio(response)
 ```
 
 <audio controls>
-  <source src="./docs/audio/openai-tts.wav" type="audio/wav">
+  <source src="./docs/audio/openai-tts.wav" type="audio/wav" />
 Your browser does not support the audio element.
 </audio>
 
@@ -365,7 +365,7 @@ with open("./tests/lib/stt/today-is-a-wonderful-day.wav", "rb") as f:
 ```
 
 <audio controls>
-  <source src="./tests/lib/stt/today-is-a-wonderful-day.wav" type="audio/wav">
+  <source src="./tests/lib/stt/today-is-a-wonderful-day.wav" type="audio/wav" />
 Your browser does not support the audio element.
 </audio>
 
@@ -415,7 +415,7 @@ messages = [
 ]
 ```
 
-![bus](./tests/lib/itt/buses.jpeg)
+![bus](./imgs/buses.jpeg)
 
 Describe using Llava
 
@@ -427,7 +427,7 @@ for chunk in ggg("itt",messages=messages,stream=True):
 print("\n")
 ```
 
-![itt-llava](./docs/imgs/gai-lib-itt-llava.gif)
+![itt-llava](./imgs/gai-lib-itt-llava.gif)
 
 Describe using OpenAI's Vision
 
@@ -439,7 +439,7 @@ for chunk in ggg(category="itt", generator="openai-vision", messages=messages, s
 print("\n")
 ```
 
-![itt-openai](./docs/imgs/gai-lib-itt-openai.gif)
+![itt-openai](./imgs/gai-lib-itt-openai.gif)
 
 ### RAG
 
@@ -455,7 +455,7 @@ response = ggg("index", **data)
 print(response.json())
 ```
 
-![rag-index](./docs/imgs/gai-lib-rag-index.gif)
+![rag-index](./imgs/gai-lib-rag-index.gif)
 
 Question and Answer
 
@@ -472,7 +472,7 @@ for chunk in answer:
     print(chunk.decode(), end="", flush=True)
 ```
 
-![rag-retrieve](./docs/imgs/gai-lib-rag-retrieve.gif)
+![rag-retrieve](./imgs/gai-lib-rag-retrieve.gif)
 
 ## 6. API Endpoints
 
