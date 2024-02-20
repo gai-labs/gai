@@ -1,3 +1,4 @@
+import shutil
 from setuptools import setup, find_packages
 from os.path import abspath
 import subprocess, os, sys
@@ -7,11 +8,35 @@ base_dir = os.path.dirname(os.path.abspath(__file__))
 version_file = os.path.join(base_dir, 'VERSION')
 with open(version_file, 'r') as f:
     VERSION = f.read().strip()
+thisDir = os.path.dirname(os.path.realpath(__file__))
 
 def parse_requirements(filename):
-    with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), filename)) as f:
+    with open(os.path.join(thisDir, filename)) as f:
         required = f.read().splitlines()
     return required
+
+class CustomInstall(install):
+    def run(self):
+        home_dir = os.path.expanduser("~")
+        gairc_file = os.path.join(home_dir, ".gairc")
+        with open(gairc_file, 'w') as f:
+            f.write("~/gai")
+
+        gai_dir = os.path.join(home_dir, "gai")
+        os.makedirs(gai_dir, exist_ok=True)
+
+        gai_models_dir = os.path.join(home_dir, "gai","models")
+        os.makedirs(gai_models_dir, exist_ok=True)
+
+        config = os.path.join(thisDir,"gai.yml")
+        if not os.path.isfile("gai.yml"):
+            raise Exception("gai.yml file not found. Please make sure the file is in the root directory of the project.")
+        else:
+            print("Copying gai.yml to ~/gai")
+        shutil.copy("gai.yml", gai_dir)
+
+        # Proceed with the installation
+        install.run(self)
 
 setup(
     name='gai-lib',
@@ -51,5 +76,8 @@ setup(
             'scrape=gai.cli.scrape:main',
             'gai=gai.cli.Gaicli:main',
         ],
-    }
+    },
+    cmdclass={
+        'install': CustomInstall,
+    },    
 )

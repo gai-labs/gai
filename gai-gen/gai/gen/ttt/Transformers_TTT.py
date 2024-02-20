@@ -1,6 +1,6 @@
 import torch,os,gc
 from gai.common import generators_utils, logging
-from gai.common.utils import get_config_path
+from gai.common.utils import get_app_path
 logger = logging.getLogger(__name__)
 
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig,StoppingCriteriaList, TextStreamer, TextIteratorStreamer
@@ -43,7 +43,7 @@ class Transformers_TTT:
             raise Exception("transformers_engine: model_basename is required")
 
         self.gai_config = gai_config
-        self.model_filepath = os.path.join(get_config_path(), gai_config["model_path"], gai_config["model_basename"])   #not used
+        self.model_filepath = os.path.join(get_app_path(), gai_config["model_path"], gai_config["model_basename"])   #not used
         self.model = None
         self.tokenizer = None
         self.generator = None
@@ -51,7 +51,7 @@ class Transformers_TTT:
     def load(self):
         logger.info(f"transformers_engine: Loading model from {self.gai_config['model_path']}")
 
-        self.tokenizer = AutoTokenizer.from_pretrained(os.path.join(get_config_path(),self.gai_config['model_path']))
+        self.tokenizer = AutoTokenizer.from_pretrained(os.path.join(get_app_path(),self.gai_config['model_path']))
         self.tokenizer.pad_token = self.tokenizer.eos_token
 
         n_gpus = torch.cuda.device_count()
@@ -63,7 +63,7 @@ class Transformers_TTT:
         )
         max_memory = f'{40960}MB'
         self.model = AutoModelForCausalLM.from_pretrained(
-            os.path.join(get_config_path(),self.gai_config['model_path']), 
+            os.path.join(get_app_path(),self.gai_config['model_path']), 
             quantization_config=bnb_config,
             device_map="auto",
             max_memory={i: max_memory for i in range(n_gpus )},)

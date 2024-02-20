@@ -2,7 +2,7 @@ import os, gc
 #from TTS.api import TTS
 from gai.common import generators_utils, logging
 logger = logging.getLogger(__name__)
-from gai.common.utils import get_config_path
+from gai.common.utils import get_app_path
 import torch
 
 class XTTS_TTS:
@@ -20,7 +20,7 @@ class XTTS_TTS:
         
         os.environ["COQUI_TOS_AGREED"] = "1"
         device = "cuda" if torch.cuda.is_available() else "cpu"
-        model_path=os.path.join(get_config_path(),self.gai_config["model_path"])
+        model_path=os.path.join(get_app_path(),self.gai_config["model_path"])
         config_path = os.path.join(model_path,"config.json")
 
         # Load Config
@@ -134,7 +134,7 @@ class XTTS_TTS:
         stream = model_params.pop("stream",False)
 
         from TTS.tts.utils.speakers import SpeakerManager
-        speaker_manager = SpeakerManager(speaker_id_file_path=f"{get_config_path()}/models/tts/tts_models--multilingual--multi-dataset--xtts_v2/speakers_xtts.pth")
+        speaker_manager = SpeakerManager(speaker_id_file_path=f"{get_app_path()}/models/tts/tts_models--multilingual--multi-dataset--xtts_v2/speakers_xtts.pth")
         speaker = speaker_manager.get_speakers()[voice]
         gpt_cond_latent, speaker_embedding=speaker.values()
         chunks = self.model.inference_stream(input, language, gpt_cond_latent, speaker_embedding, **model_params)

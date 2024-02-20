@@ -1,5 +1,5 @@
 from gai.lib.ttt.ChunkWrapper import ChunkWrapper
-import gai.common.ConfigHelper as ConfigHelper
+from gai.common.utils import get_lib_config
 from gai.common.http_utils import http_post
 from gai.common.image_utils import base64_to_imageurl
 from gai.lib.ttt.OpenAIChunkWrapper import OpenAIChunkWrapper

@@ -1,52 +1,43 @@
-import re
 import json
-from gai.common.ConfigHelper import get_lib_config
+import os,re
+from gai.common.utils import get_gen_config
 
 # A simple utility to validate if all items in model params are in the whitelist.
-
-
-def validate_params(model_params, whitelist_params):
+def validate_params(model_params,whitelist_params):
     for key in model_params:
         if key not in whitelist_params:
-            raise Exception(
-                f"Invalid param '{key}'. Valid params are: {whitelist_params}")
+            raise Exception(f"Invalid param '{key}'. Valid params are: {whitelist_params}")
 
 # A simple utility to filter items in model params that are also in the whitelist.
-
-
-def filter_params(model_params, whitelist_params):
-    filtered_params = {}
+def filter_params(model_params,whitelist_params):
+    filtered_params={}
     for key in model_params:
         if key in whitelist_params:
-            filtered_params[key] = model_params[key]
+            filtered_params[key]=model_params[key]
     return filtered_params
 
 # A simple utility to load generators config.
-
-
 def load_generators_config():
-    return get_lib_config()["gen"]
+    return get_gen_config()["gen"]
 
-# This is useful for converting chatgpt-style dialog to text dialog
-
-
+# This is used to compress a list into a smaller string to be passed as a single USER message to the prompt template.
 def chat_list_to_string(messages):
     if type(messages) is str:
         return messages
-    prompt = ""
+    prompt=""        
     for message in messages:
+        if prompt:
+            prompt+="\n"
         content = message['content'].strip()
         role = message['role'].strip()
         if content:
-            prompt += f"{role}: {content}\n"
+            prompt += f"{role}: {content}"
         else:
             prompt += f"{role}:"
     return prompt
 
 # This is useful for converting text dialog to chatgpt-style dialog
-
-
-def chat_string_to_list(messages, ai_name="assistant"):
+def chat_string_to_list(messages,ai_name="assistant"):
     # Split the messages into lines
     lines = messages.split('\n')
 
@@ -64,13 +55,11 @@ def chat_string_to_list(messages, ai_name="assistant"):
     for line in lines:
         # Check if the line starts with a role
         for role in roles:
-            # ignore case when comparing roles
-            if line.lower().startswith(role.lower() + ':'):
+            if line.startswith(role + ':'):
                 # If there is any content for the current role, add it to the result
                 if current_role is not None and current_content.strip() != '':
-                    result.append(
-                        {'role': current_role, 'content': current_content.strip()})
-
+                    result.append({'role': current_role, 'content': current_content.strip()})
+                
                 # Start a new role and content
                 current_role = role
                 current_content = line[len(role) + 1:].strip()
@@ -81,14 +70,63 @@ def chat_string_to_list(messages, ai_name="assistant"):
 
     # Add the last role and content to the result
     if current_role is not None:
-        result.append(
-            {'role': current_role, 'content': current_content.strip()})
+        result.append({'role': current_role, 'content': current_content.strip()})
 
     return result
 
+def chat_list_to_INST(input_list):
+    # Initialize an empty string for the output
+    output = "<s>\n\t[INST]\n"
+    
+    # if last message is an AI placeholder, remove it
+    last_role = input_list[-1]["role"].lower()
+    last_content = input_list[-1]["content"]
+    if last_role != "system" and last_role != "user" and last_content == "":
+        input_list.pop()
 
-# This is the async version of the word_streamer
-async def word_streamer_async(char_generator):
+    # Loop through the list of dictionaries
+    for item in input_list:
+        # Check the role
+        role = item["role"].lower()
+        if role == "system":
+            # Add the system message
+            output += f"\t\t<<SYS>>\n\t\t\t{item['content']}\n\t\t<</SYS>>\n"
+        elif role == "user":
+            # Add the user message
+            output += f"\t\t{item['content']}\n"
+            output += "\t[/INST]\n\n\t"
+        else:
+            # Add the AI message
+            output += f"{item['content']}\n\n"
+            # AI message marks the end of 1 turn
+            output += "</s>\n"
+            # Add the beginning of next turn
+            output += "<s>\n\t[INST]\n"
+   
+    return output
+
+def INST_output_to_output(output_string):
+    # The rfind method returns the last index where the substring is found
+    last_index = output_string.rfind('[/INST]\n\n\t')
+
+    # Add the length of '[/INST]\n\n\t' to get the start of the desired substring
+    start_of_substring = last_index + len('[/INST]\n\n\t')
+
+    # Extract the substring from start_of_substring till the end of the string
+    result = output_string[start_of_substring:]
+
+    return result
+
+def ASSISTANT_output_to_output(output_string):
+    return re.split('\n.+:',output_string)[-1].strip()
+
+def has_ai_placeholder(messages):
+    message = messages[-1]
+    if message["role"].lower() != "system" and message["role"].lower() != "user" and message["content"] == "":
+        return True
+    return False
+
+async def word_streamer_async( char_generator):
     buffer = ""
     async for byte_chunk in char_generator:
         if type(byte_chunk) == bytes:
@@ -100,12 +138,9 @@ async def word_streamer_async(char_generator):
                 yield word
                 yield " "
             buffer = words[-1]
-    yield buffer
+    yield buffer            
 
-# This is useful for converting a stream of characters to a stream of words
-
-
-def word_streamer(char_generator):
+def word_streamer( char_generator):
     buffer = ""
     for chunk in char_generator:
         if chunk:
@@ -119,43 +154,3 @@ def word_streamer(char_generator):
                     yield " "
                 buffer = words[-1]
     yield buffer
-
-
-# This is useful for accepting a stream of string and converting it to a stream of JSON objects
-def json_streamer(httpResponse):
-    httpResponse.encoding = 'utf-8'
-    for line in httpResponse.iter_lines(decode_unicode=True):
-        if line:
-            yield json.loads(str(line))
-
-
-# This is useful for extracting argument when expecting the AI to return a function prompt
-def extract_argument_from_prompt_function(output, command, remove_space=True, remove_quotes=True, remove_slash=True, remove_dollar=True):
-    # Strip whitespaces, double quotes, single quotes, and backslashes
-    if (remove_space):
-        output = re.sub(r'\s+', '', output)
-        command = re.sub(r'\s+', '', command)
-
-    if (remove_quotes):
-        output = re.sub(r'"|\'', '', output)
-        command = re.sub(r'"|\'', '', command)
-
-    if (remove_slash):
-        output = re.sub(r'\\+', '', output)
-        command = re.sub(r'\\+', '', command)
-
-    if (remove_dollar):
-        output = re.sub(r'\\$', '', output)
-        command = re.sub(r'\\$', '', command)
-
-    # Capture argument after "=" or within "()"
-    print("cleaned_command=", command)
-    print("output_command=", output)
-    query_string = output.replace(command, '').strip().lstrip(
-        '(').rstrip(')').lstrip('=').strip()
-    return query_string
-
-    # matches = re.search(rf"^{re.escape(command)}(?:\s*=\s*|\s*\(\s*)\"?([^\)\"\']+)\"?(?:\s*\)|\b)", output)
-    # if matches:
-    #     query_string = matches.group(1)
-    #     return query_string

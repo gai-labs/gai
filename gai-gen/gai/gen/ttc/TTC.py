@@ -1,5 +1,5 @@
 from typing import List
-from gai.common.utils import get_config_path
+from gai.common.utils import get_app_path
 from gai.common import logging, generators_utils
 logger = logging.getLogger(__name__)
 

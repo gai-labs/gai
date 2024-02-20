@@ -10,3 +10,4 @@ uvicorn==0.23.2
 PyDub==0.25.1
 python_multipart==0.0.6
 fastapi
+langchain-community==0.0.18

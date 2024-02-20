@@ -1,7 +1,7 @@
 from llama_cpp import Llama
 from llama_cpp._utils import suppress_stdout_stderr
 from gai.common import generators_utils, logging
-from gai.common.utils import get_config_path
+from gai.common.utils import get_app_path
 import os,sys,torch,gc,re
 from openai.types.chat.chat_completion import ChatCompletion, ChatCompletionMessage, Choice , CompletionUsage
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk, Choice as ChunkChoice, ChoiceDelta
@@ -46,7 +46,7 @@ class LlamaCpp_TTT:
             raise Exception("llamacpp_engine: model_basename is required")
 
         self.gai_config = gai_config
-        self.model_filepath = os.path.join(get_config_path(), gai_config["model_path"], gai_config["model_basename"])
+        self.model_filepath = os.path.join(get_app_path(), gai_config["model_path"], gai_config["model_basename"])
         self.model = None
         self.tokenizer = None
         self.client = None

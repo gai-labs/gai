@@ -1,5 +1,5 @@
 from gai.common import generators_utils, logging
-from gai.common.utils import get_config_path
+from gai.common.utils import get_app_path
 logger = logging.getLogger(__name__)
 import gc
 import torch
@@ -25,7 +25,7 @@ import re,os
 class Llava_ITT:
 
     def __init__(self, gai_config):
-        self.model_path = os.path.join(get_config_path(),gai_config['model_path'])
+        self.model_path = os.path.join(get_app_path(),gai_config['model_path'])
         self.model_name = gai_config['model_name']
         self.gai_config = gai_config
         self.model = None

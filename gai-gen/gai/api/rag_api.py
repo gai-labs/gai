@@ -1,11 +1,11 @@
 import uuid
-from gai.api.errors import InternalError
+from gai.common.errors import *
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
 from sqlalchemy.exc import IntegrityError as SqlAlchemyIntegrityError
 from sqlite3 import IntegrityError as Sqlite3IntegrityError
 
-from fastapi import FastAPI, Body, Form, File, HTTPException, UploadFile
+from fastapi import FastAPI, Body, Form, File, UploadFile
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
 
@@ -23,14 +23,14 @@ from gai.api.status_update_router import status_update_router
 from gai.gen.rag import RAG
 from gai.gen import Gaigen
 from gai.common.PDFConvert import PDFConvert
-from gai.api.errors import *
+from gai.common.errors import *
 
 # Configure Dependencies
 dependencies.configure_logging()
 from gai.common.logging import getLogger
 logger = getLogger(__name__)
 logger.info(f"Starting Gai Generators Service v{dependencies.APP_VERSION}")
-logger.info(f"Version of gai_lib installed = {dependencies.LIB_VERSION}")
+logger.info(f"Version of gai_gen installed = {dependencies.LIB_VERSION}")
 swagger_url = dependencies.get_swagger_url()
 app = FastAPI(
     title="Gai Generators Service",
@@ -89,7 +89,9 @@ preload_model()
 #                          chunk_overlap=request.chunk_overlap,
 #                          **metadata)
 #     except Exception as e:
-#         return InternalError(str(e))
+#         logger.error(f"rag_api.index: {str(e)}")
+#         id = str(uuid.uuid4())
+#         raise InternalException(id)
 
 @app.post("/gen/v1/rag/index-file")
 async def index_file(collection_name: str = Form(...), file: UploadFile = File(...), metadata: str = Form(...)):
@@ -118,18 +120,18 @@ async def index_file(collection_name: str = Form(...), file: UploadFile = File(.
     except (SqlAlchemyIntegrityError, Sqlite3IntegrityError) as e:
         if "UNIQUE constraint failed: IndexedDocumentChunks.Id" in str(e):
             logger.error(f"rag_api.index_file: {str(e)}")
-            raise HTTPException(status_code=400, detail={
+            raise ApiException(status_code=400, detail={
                 "type": "error", 
                 "code": "duplicate_chunk", 
                 "message": "A document with identical chunk is found."
             })
         id = str(uuid.uuid4())
         logger.error(f"rag_api.index_file: {id} {str(e)}")
-        return InternalError(id)
+        raise InternalException(id)
     except Exception as e:
         id = str(uuid.uuid4())
         logger.error(f"rag_api.index_file: {id} {str(e)}")
-        return InternalError(id)
+        raise InternalException(id)
 
 ### ----------------- RETRIEVAL ----------------- ###
 
@@ -151,7 +153,7 @@ async def retrieve(request: QueryRequest = Body(...)):
     except Exception as e:
         id = str(uuid.uuid4())
         logger.error(f"rag_api.retrieve: {id} {str(e)}")
-        return InternalError(id)
+        raise InternalException(id)
 
 ### ----------------- COLLECTIONS ----------------- ###
 
@@ -176,7 +178,7 @@ async def delete_collection(collection_name):
     except Exception as e:
         id = str(uuid.uuid4())
         logger.error(f"rag_api.delete_collection: {id} {str(e)}")
-        return InternalError(id)
+        raise InternalException(id)
 
 # GET /gen/v1/rag/collections
 @app.get("/gen/v1/rag/collections")
@@ -189,7 +191,7 @@ async def list_collections():
     except Exception as e:
         id = str(uuid.uuid4())
         logger.error(f"rag_api.list_collections: {id} {str(e)}")
-        return InternalError(id)
+        raise InternalException(id)
 
 # GET /gen/v1/rag/collection/{collection_name}
 @app.get("/gen/v1/rag/collection/{collection_name}")
@@ -203,7 +205,7 @@ async def list_documents(collection_name):
     except Exception as e:
         id = str(uuid.uuid4())
         logger.error(f"rag_api.list_documents: {id} {str(e)}")
-        return InternalError(id)
+        raise InternalException(id)
 
 ### ----------------- DOCUMENTS ----------------- ###
 
@@ -227,7 +229,7 @@ async def get_document(document_id):
     except Exception as e:
         id = str(uuid.uuid4())
         logger.error(f"rag_api.get_document: {id} {str(e)}")
-        return InternalError(id)
+        raise InternalException(id)
 
 # POST /gen/v1/rag/document
 class UpdateDocumentRequest(BaseModel):
@@ -261,7 +263,7 @@ async def update_document(req: UpdateDocumentRequest = Body(...)):
     except Exception as e:
         id = str(uuid.uuid4())
         logger.error(f"rag_api.update_document: {id} {str(e)}")
-        return InternalError(id)
+        raise InternalException(id)
 
 # DELETE /gen/v1/rag/document/{document_id}
 @app.delete("/gen/v1/rag/document/{document_id}")
@@ -284,7 +286,7 @@ async def delete_document(document_id):
     except Exception as e:
         id = str(uuid.uuid4())
         logger.error(f"rag_api.delete_document: {id} {str(e)}")
-        return InternalError(id)
+        raise InternalException(id)
 
 ### ----------------- CHUNKS ----------------- ###
     

@@ -1,5 +1,5 @@
 import asyncio
-from gai.common._exceptions import HttpException
+from gai.common.errors import ApiException
 from urllib.parse import urlparse
 import os
 import pprint
@@ -26,7 +26,7 @@ import json
 def _handle_failed_response(response):
     error_code = "unknown"
     if response.status_code == 401:
-        raise HttpException(status_code=401, code=error_code, message="Unauthorized", url=response.url)
+        raise ApiException(status_code=401, code=error_code, message="Unauthorized", url=response.url)
 
     content_type = response.headers.get("Content-Type")
     if content_type and "application/json" in content_type:
@@ -39,30 +39,30 @@ def _handle_failed_response(response):
     e.status = response.status_code
 
     if isinstance(error_data, str):
-        raise HttpException(status_code=response.status_code, code=error_code, message=error_data, url=response.url)
+        raise ApiException(status_code=response.status_code, code=error_code, message=error_data, url=response.url)
     
     if 'detail' in error_data:
 
         if isinstance(error_data['detail'], str):
-            raise HttpException(status_code=response.status_code, code=error_code, message=error_data['detail'], url=response.url)
+            raise ApiException(status_code=response.status_code, code=error_code, message=error_data['detail'], url=response.url)
 
         if 'code' in error_data['detail']:
             error_code = error_data['detail']['code']
 
         if 'message' in error_data['detail'] and isinstance(error_data['detail']['message'], str):
-            raise HttpException(status_code=response.status_code, code=error_code, message=error_data['detail']['message'], url=response.url)
+            raise ApiException(status_code=response.status_code, code=error_code, message=error_data['detail']['message'], url=response.url)
 
     if 'code' in error_data:
         error_code = error_data['code']
         if 'message' in error_data:
-            raise HttpException(status_code=response.status_code, code=error_code, message=error_data['message'], url=response.url)    
+            raise ApiException(status_code=response.status_code, code=error_code, message=error_data['message'], url=response.url)    
         
-    raise HttpException(status_code=response.status_code, code=error_code, message=json.dumps(error_data), url=response.url)    
+    raise ApiException(status_code=response.status_code, code=error_code, message=json.dumps(error_data), url=response.url)    
 
 async def _handle_failed_response_async(response):
     error_code = "unknown"
     if response.status == 401:
-        raise HttpException(status_code=401, code=error_code, message="Unauthorized", url=response.url)
+        raise ApiException(status_code=401, code=error_code, message="Unauthorized", url=response.url)
 
     content_type = response.headers.get("Content-Type")
     if content_type and "application/json" in content_type:
@@ -75,25 +75,25 @@ async def _handle_failed_response_async(response):
     e.status = response.status
 
     if isinstance(error_data, str):
-        raise HttpException(status_code=response.status, code=error_code, message=error_data, url=response.url)
+        raise ApiException(status_code=response.status, code=error_code, message=error_data, url=response.url)
 
     if 'detail' in error_data:
 
         if isinstance(error_data['detail'], str):
-            raise HttpException(status_code=response.status_code, code=error_code, message=error_data['detail'], url=response.url)
+            raise ApiException(status_code=response.status_code, code=error_code, message=error_data['detail'], url=response.url)
 
         if 'code' in error_data['detail']:
             error_code = error_data['detail']['code']
 
         if 'message' in error_data['detail'] and isinstance(error_data['detail']['message'], str):
-            raise HttpException(status_code=response.status_code, code=error_code, message=error_data['detail']['message'], url=response.url)
+            raise ApiException(status_code=response.status_code, code=error_code, message=error_data['detail']['message'], url=response.url)
 
     if 'code' in error_data:
         error_code = error_data['code']
         if 'message' in error_data:
-            raise HttpException(status_code=response.status_code, code=error_code, message=error_data['message'], url=response.url)    
+            raise ApiException(status_code=response.status_code, code=error_code, message=error_data['message'], url=response.url)    
         
-    raise HttpException(status_code=response.status_code, code=error_code, message=json.dumps(error_data), url=response.url)    
+    raise ApiException(status_code=response.status_code, code=error_code, message=json.dumps(error_data), url=response.url)    
 
 async def http_post_async(url, data):
     return httppost_async(url, data)

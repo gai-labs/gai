@@ -6,3 +6,4 @@ openai
 anthropic
 python-dotenv
 langchain
+gai-common==0.74

@@ -2,9 +2,11 @@ import os, sys, re, time
 import json
 from os.path import dirname
 import shutil
+from gai.common import constants
+import yaml
 
 def init():
-    with open(os.path.expanduser("~/.gairc"), "w") as file:
+    with open(os.path.expanduser(constants.GAIRC), "w") as file:
         file.write(json.dumps({
             "app_dir": "~/gai"
         }, indent=4))
@@ -13,22 +15,36 @@ def init():
     os.makedirs(os.path.expanduser("~/gai/models"), exist_ok=True)
     shutil.copy(config_path, os.path.expanduser("~/gai"))
 
-
+# Get JSON FROM ~/.gairc
 def get_rc():
-    if (not os.path.exists(os.path.expanduser("~/.gairc"))):
+    if (not os.path.exists(os.path.expanduser(constants.GAIRC))):
         init()
-    with open(os.path.expanduser("~/.gairc"), 'r') as f:
+    with open(os.path.expanduser(constants.GAIRC), 'r') as f:
         return json.load(f)
 
-
-def get_config_path():
+# Get "app_dir" from ~/.gairc
+def get_app_path():
     rc = get_rc()
-    return os.path.abspath(os.path.expanduser(rc["app_dir"]))
+    app_dir=os.path.abspath(os.path.expanduser(rc["app_dir"]))
+    return app_dir
 
-def get_config():
-    rc = get_rc()
-    config_dir = os.path.abspath(os.path.expanduser(rc["app_dir"]))
-    return json.load(open(os.path.join(config_dir, 'gai.json'),'r'))
+# Get ~/.gai/gai.json
+def get_gen_config(file_path=None):
+    app_dir=get_app_path()
+    gen_config_path = os.path.join(app_dir, 'gai.json')
+    if file_path:
+        gen_config_path = file_path
+    with open(gen_config_path, 'r') as f:
+            return json.load(f)
+
+# Get ~/.gai/gai.yml
+def get_lib_config(file_path=None):
+    app_dir=get_app_path()
+    lib_config_path = os.path.join(app_dir, 'gai.yml')
+    if file_path:
+        lib_config_path = file_path
+    with open(lib_config_path, 'r') as f:
+        return yaml.load(f, Loader=yaml.FullLoader)
 
 def this_dir(file):
     return os.path.dirname(os.path.realpath(file))

@@ -1,10 +1,10 @@
 from gai.lib.ttt.ChunkWrapper import ChunkWrapper
 from gai.lib.ttt.OpenAIChunkWrapper import OpenAIChunkWrapper
 from gai.lib.ttt.AnthropicChunkWrapper import AnthropicChunkWrapper
-import gai.common.ConfigHelper as ConfigHelper
+from gai.common.utils import get_lib_config
 from gai.common.http_utils import http_post
 from gai.common.generators_utils import chat_string_to_list, chat_list_to_string
-from gai.common._exceptions import HttpException
+from gai.common.errors import ApiException
 from gai.common.logging import getLogger
 logger = getLogger(__name__)
 import json,os
@@ -41,7 +41,7 @@ class TTTClient(ClientBase):
         try:
             url = self._gen_url(generator)
             response = http_post(url, data)
-        except HttpException as he:
+        except ApiException as he:
 
             # Switch to Mistral7b 128k context size
             if he.code == "context_length_exceeded":

@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 import asyncio
 import os,json,io
 
-from gai.api.errors import *
+from gai.common.errors import *
 load_dotenv()
 
 # Configure Dependencies
@@ -18,7 +18,7 @@ dependencies.configure_logging()
 from gai.common.logging import getLogger
 logger = getLogger(__name__)
 logger.info(f"Starting Gai Generators Service v{dependencies.APP_VERSION}")
-logger.info(f"Version of gai_lib_gen installed = {dependencies.LIB_VERSION}")
+logger.info(f"Version of gai_gen installed = {dependencies.LIB_VERSION}")
 swagger_url = dependencies.get_swagger_url()
 app=FastAPI(
     title="Gai Generators Service",
@@ -33,11 +33,11 @@ from gai.gen import Gaigen
 gen = Gaigen.GetInstance()
 
 # Pre-load default model
-from gai.common.utils import get_config_path, get_config
+from gai.common.utils import get_gen_config, get_app_path
 DEFAULT_GENERATOR=os.getenv("DEFAULT_GENERATOR")
 def preload_model():
     try:
-        gai_config = get_config()
+        gai_config = get_gen_config()
         if "default" in gai_config["gen"]:
             default_generator_name = gai_config["gen"]["default"]
         if DEFAULT_GENERATOR:
@@ -83,10 +83,10 @@ async def _text_to_text(request: ChatCompletionRequest = Body(...)):
     except Exception as e:
         logger.error(str(e))
         if (str(e)=='context_length_exceeded'):
-            return ContextLengthExceededError()
+            raise ContextLengthExceededException()
         if (str(e)=='model_service_mismatch'):
-            return ModelServiceMismatchError()
-        return InternalError(str(e))
+            raise GeneratorMismatchException()
+        raise InternalException(id)
 
 class ChatInstallRequest(BaseModel):
     repo:str
@@ -116,7 +116,7 @@ async def _chat_install(req:ChatInstallRequest):
             "message":"Model installed successfully."
         })
     except Exception as e:
-        return InternalError(str(e))
+        raise InternalException(id)
 
 
 class ChatDefaultConfigRequest(BaseModel):
@@ -126,19 +126,18 @@ class ChatDefaultConfigRequest(BaseModel):
 async def _chat_default_config(req:ChatDefaultConfigRequest):
     try:
         # read
-        config_path = get_config_path()
-        with open(os.path.join(config_path,"gai.json"),'r') as f:
-            config = json.load(f)
+        app_path = get_app_path()
+        config = get_gen_config()
             
         config["gen"]["default"] = req.generator_name
         if req.generator_config:
             config["gen"][req.generator_name] = req.generator_config
 
         # write
-        with open(os.path.join(config_path,"gai.json"),'w') as f:
+        with open(os.path.join(app_path,"gai.json"),'w') as f:
             json.dump(config,f,indent=4)
     except Exception as e:
-        return InternalError(str(e))
+        raise InternalException(id)
 
 if __name__ == "__main__":
     import uvicorn

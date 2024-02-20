@@ -18,7 +18,7 @@ import gc
 import re
 import os
 from gai.common import logging, generators_utils
-from gai.common.utils import this_dir, get_config_path
+from gai.common.utils import this_dir, get_app_path
 from gai.common.generators_utils import chat_string_to_list, has_ai_placeholder
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,7 @@ class ExLlama_TTT:
             raise Exception("ExLlama_TTT: model_basename is required")
 
         self.gai_config = gai_config
-        self.model_filepath = os.path.join(get_config_path(
+        self.model_filepath = os.path.join(get_app_path(
         ), gai_config["model_path"], gai_config["model_basename"])+".safetensors"
         self.model = None
         self.tokenizer = None
@@ -66,7 +66,7 @@ class ExLlama_TTT:
 
         # model
         model_dir = os.path.join(
-            get_config_path(), self.gai_config["model_path"])
+            get_app_path(), self.gai_config["model_path"])
         if not os.path.exists(model_dir):
             raise Exception("ExLlama_TTT: model_dir is not found")
         model_config_path = os.path.join(model_dir, 'config.json')

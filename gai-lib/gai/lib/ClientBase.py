@@ -1,13 +1,13 @@
 import os
-import gai.common.ConfigHelper as ConfigHelper
+from gai.common.utils import get_lib_config
 
 class ClientBase:
 
     def __init__(self, config_path=None):
         if config_path:
-            self.config = ConfigHelper.get_lib_config(config_path)
+            self.config = get_lib_config(config_path)
         else:
-            self.config = ConfigHelper.get_lib_config()
+            self.config = get_lib_config()
         self.base_url = self.config["gai_url"]
 
     def _gen_url(self, generator):

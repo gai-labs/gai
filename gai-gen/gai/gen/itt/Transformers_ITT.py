@@ -1,6 +1,6 @@
 import os,torch,gc,re,base64,io
 from gai.common import generators_utils, logging
-from gai.common.utils import get_config_path
+from gai.common.utils import get_app_path
 from transformers import AutoProcessor, LlavaForConditionalGeneration, BitsAndBytesConfig
 from PIL import Image
 from uuid import uuid4
@@ -23,7 +23,7 @@ class Transformers_ITT:
         pass
 
     def load(self):
-        model_path = os.path.join(get_config_path(),self.gai_config['model_path'])
+        model_path = os.path.join(get_app_path(),self.gai_config['model_path'])
         bnb_config = BitsAndBytesConfig(
             load_in_4bit=True,
             bnb_4bit_use_double_quant=True,

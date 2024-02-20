@@ -1,4 +1,4 @@
-from gai.common.utils import get_config_path
+from gai.common.utils import get_app_path
 from gai.common import logging, generators_utils
 logger = logging.getLogger(__name__)
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
@@ -12,7 +12,7 @@ class Transformers_TTC:
     def __init__(self,gai_config):
         self.gai_config = gai_config
         self.generator_name="deepseek-transformers"
-        self.model_path = os.path.join(get_config_path(),gai_config['model_path'])
+        self.model_path = os.path.join(get_app_path(),gai_config['model_path'])
         self.model = None
         self.tokenizer = None
         self.generator = None        

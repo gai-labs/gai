@@ -9,7 +9,7 @@ from datetime import datetime
 from gai.gen.rag.Repository import Repository
 import logging
 
-from gai.common.utils import get_config, get_config_path
+from gai.common.utils import get_gen_config, get_app_path
 
 class RagUnitTest(unittest.TestCase):
 

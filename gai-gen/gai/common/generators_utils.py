@@ -1,6 +1,6 @@
 import json
 import os,re
-from gai.common.utils import get_config
+from gai.common.utils import get_gen_config
 
 # A simple utility to validate if all items in model params are in the whitelist.
 def validate_params(model_params,whitelist_params):
@@ -18,7 +18,7 @@ def filter_params(model_params,whitelist_params):
 
 # A simple utility to load generators config.
 def load_generators_config():
-    return get_config()["gen"]
+    return get_gen_config()["gen"]
 
 # This is used to compress a list into a smaller string to be passed as a single USER message to the prompt template.
 def chat_list_to_string(messages):

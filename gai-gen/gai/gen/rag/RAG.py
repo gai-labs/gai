@@ -7,7 +7,7 @@ from datetime import datetime
 from chromadb.utils.embedding_functions import InstructorEmbeddingFunction
 from chromadb.config import Settings
 import chromadb
-from gai.common.utils import get_config, get_config_path
+from gai.common.utils import get_gen_config, get_app_path
 import threading
 from gai.common import logging, file_utils
 from gai.common.StatusUpdater import StatusUpdater
@@ -20,8 +20,8 @@ class RAG:
 
     def __init__(self, status_updater=None):
         self.generator_name = "rag"
-        config = get_config()["gen"]["rag"]
-        app_path = get_config_path()
+        config = get_gen_config()["gen"]["rag"]
+        app_path = get_app_path()
         self.model_path = os.path.join(app_path, config["model_path"])
         if (os.environ.get("RAG_MODEL_PATH")):
             model_path = os.environ["RAG_MODEL_PATH"]
@@ -73,8 +73,8 @@ class RAG:
     @staticmethod
     def get_db():
         try:
-            app_path = get_config_path()
-            config = get_config()["gen"]["rag"]
+            app_path = get_app_path()
+            config = get_gen_config()["gen"]["rag"]
             chromadb_path = os.path.join(app_path, config["chromadb"]["path"])
             db = chromadb.PersistentClient(
                 path=chromadb_path, settings=Settings(allow_reset=True))
@@ -140,8 +140,8 @@ class RAG:
     # get from sqlite
     @staticmethod
     def get_repo():
-        app_path = get_config_path()
-        config = get_config()["gen"]["rag"]
+        app_path = get_app_path()
+        config = get_gen_config()["gen"]["rag"]
         sqlite_path = os.path.join(app_path, config["sqlite"]["path"])
         sqlite_string = f'sqlite:///{sqlite_path}'
         return Repository(sqlite_string)

@@ -1,7 +1,7 @@
 import torch,gc,os
 from gai.common import logging, generators_utils
 logger = logging.getLogger(__name__)
-from gai.common.utils import get_config_path
+from gai.common.utils import get_app_path
 from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
 from pathlib import PosixPath
 
@@ -16,7 +16,7 @@ class LocalWhisper_STT:
         logger.info(f"Loading model...")
         self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
         self.torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
-        self.model_path = os.path.join(get_config_path(),self.gai_config['model_path'])
+        self.model_path = os.path.join(get_app_path(),self.gai_config['model_path'])
         self.model = AutoModelForSpeechSeq2Seq.from_pretrained(
             self.model_path, 
             torch_dtype=self.torch_dtype, 

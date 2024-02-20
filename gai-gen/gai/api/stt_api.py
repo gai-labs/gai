@@ -1,6 +1,6 @@
 from fastapi import FastAPI, UploadFile,File
 from dotenv import load_dotenv
-from gai.api.errors import *
+from gai.common.errors import *
 load_dotenv()
 
 # Configure Dependencies
@@ -9,7 +9,7 @@ dependencies.configure_logging()
 from gai.common.logging import getLogger
 logger = getLogger(__name__)
 logger.info(f"Starting Gai Generators Service v{dependencies.APP_VERSION}")
-logger.info(f"Version of gai_lib installed = {dependencies.LIB_VERSION}")
+logger.info(f"Version of gai_gen installed = {dependencies.LIB_VERSION}")
 swagger_url = dependencies.get_swagger_url()
 app=FastAPI(
     title="Gai Generators Service",
@@ -67,7 +67,7 @@ async def _speech_to_text(model: str = Form("whisper-transformers"),file: Upload
         return gen.create(file=wav_file_data)    
 
     except Exception as e:
-        return InternalError(str(e))
+        raise InternalException(id)
 
 if __name__ == "__main__":
     import uvicorn

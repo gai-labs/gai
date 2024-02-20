@@ -1,4 +1,4 @@
-import gai.common.ConfigHelper as ConfigHelper
+from gai.common.utils import get_lib_config
 from gai.common.http_utils import http_post
 from gai.lib.ClientBase import ClientBase
 from gai.common.logging import getLogger

@@ -7,13 +7,43 @@ with open(version_file, 'r') as f:
 
 from setuptools import setup, find_packages
 from os.path import abspath
-import subprocess, os, sys
+import subprocess, os, sys, shutil
 from setuptools.command.install import install
+import json
+
+thisDir = os.path.dirname(os.path.realpath(__file__))
 
 def parse_requirements(filename):
-    with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), filename)) as f:
+    with open(os.path.join(thisDir, filename)) as f:
         required = f.read().splitlines()
     return required
+
+class CustomInstall(install):
+    def run(self):
+        home_dir = os.path.expanduser("~")
+        gairc_file = os.path.join(home_dir, ".gairc")
+
+        if not os.path.isfile(gairc_file):
+            with open(gairc_file, 'w') as f:
+                config = {
+                    "app_dir": "~/gai"
+                }
+                f.write(json.dumps(config, indent=4))
+
+        gai_dir = os.path.join(home_dir, "gai")
+        os.makedirs(gai_dir, exist_ok=True)
+
+        gai_models_dir = os.path.join(home_dir, "gai","models")
+        os.makedirs(gai_models_dir, exist_ok=True)
+
+        if not os.path.isfile("gai.json"):
+            raise Exception("gai.json file not found. Please make sure the file is in the root directory of the project.")
+        else:
+            print("Copying gai.json to ~/gai")
+        shutil.copy("gai.json", gai_dir)
+
+        # Proceed with the installation
+        install.run(self)
 
 setup(
     name='gai-gen',
@@ -46,4 +76,7 @@ setup(
         'RAG': parse_requirements("requirements_rag.txt"),
         'TTC': parse_requirements("requirements_ttc.txt")
     },
+    cmdclass={
+        'install': CustomInstall,
+    },    
 )
