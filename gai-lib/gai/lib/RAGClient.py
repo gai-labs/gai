@@ -165,3 +165,13 @@ class RAGClient(ClientBase):
         return json.loads(response.text)
 
 
+    def exists(self,collection_name, file_path):
+        url = os.path.join(self.base_url,f"collection/{collection_name}/document_exists")
+        with open(file_path, "r") as f:
+            text = f.read()        
+        files = {
+            "file": (file_path, text, "text/plain"),
+            "collection_name": (None, collection_name, "text/plain")
+        }        
+        response = http_post(url, files=files)
+        return json.loads(response.text)

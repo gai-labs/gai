@@ -17,13 +17,14 @@ from dotenv import load_dotenv
 load_dotenv()
 import os
 import json
+import tempfile
 
 from gai.api.globals import status_updater
 from gai.api.status_update_router import status_update_router
 from gai.gen.rag import RAG
 from gai.gen import Gaigen
-from gai.common.PDFConvert import PDFConvert
 from gai.common.errors import *
+from gai.common import file_utils
 
 # Configure Dependencies
 dependencies.configure_logging()
@@ -63,72 +64,43 @@ preload_model()
 
 ### ----------------- INDEXING ----------------- ###
 
-
-# class IndexRequest(BaseModel):
-#     collection_name: str
-#     text: str
-#     path_or_url: str
-#     chunk_size: int = 2000
-#     chunk_overlap: int = 200
-
-#     class Config:
-#         extra = 'allow'  # Allow extra fields
-
-
-# @app.post("/gen/v1/rag/index")
-# async def index(request: IndexRequest = Body(...)):
-#     try:
-#         logger.info(f"main.index: collection_name={request.collection_name}")
-#         # metadata = convert to dict - non-metadata fields
-#         metadata = request.model_dump(
-#             exclude={"text", "collection_name", "path_or_url", "chunk_size", "chunk_overlap"})
-#         return gen.index(collection_name=request.collection_name,
-#                          text=request.text,
-#                          path_or_url=request.path_or_url,
-#                          chunk_size=request.chunk_size,
-#                          chunk_overlap=request.chunk_overlap,
-#                          **metadata)
-#     except Exception as e:
-#         logger.error(f"rag_api.index: {str(e)}")
-#         id = str(uuid.uuid4())
-#         raise InternalException(id)
-
+# POST /gen/v1/rag/index-file
 @app.post("/gen/v1/rag/index-file")
 async def index_file(collection_name: str = Form(...), file: UploadFile = File(...), metadata: str = Form(...)):
     try:
-        # We will use a simple file extension match to determine if the file is PDF.
-        # This is not a robust way to determine file type, but it is sufficient for our purposes.
-        if file.filename.endswith(".pdf"):
-            temp_file = tempfile.NamedTemporaryFile(delete=False)
-            with open(temp_file.name, "wb") as f:
-                f.write(await file.read())
-            text = PDFConvert.pdf_to_text(temp_file.name)
+        # Save the file to a temporary directory
+        with tempfile.TemporaryDirectory() as temp_dir:
+            file_location = os.path.join(temp_dir, file.filename)
+            with open(file_location, "wb+") as file_object:
+                content = await file.read()  # Read the content of the uploaded file
+                file_object.write(content)
 
-        else:
-            text = await file.read()
-            text = text.decode("utf-8")
-        metadata_dict = json.loads(metadata)
+            # Give the path to the file to the RAG
+            metadata_dict = json.loads(metadata)
+            doc_id = await gen.index_async(
+                collection_name=collection_name,
+                file_path=file_location,
+                file_type=file.filename.split(".")[-1],
+                title=metadata_dict.get("title", ""),
+                source=metadata_dict.get("source", ""),
+                authors=metadata_dict.get("authors", ""),
+                publisher=metadata_dict.get("publisher", ""),
+                published_date=metadata_dict.get("publishedDate", ""),
+                comments=metadata_dict.get("comments", ""),
+                keywords=metadata_dict.get("keywords", ""),
+                status_updater=status_updater)
 
-        doc_id = await gen.index_async(collection_name=collection_name,
-                                     text=text,
-                                     path_or_url=file.filename,
-                                     metadata=metadata_dict,
-                                     status_updater=status_updater)
-        return JSONResponse(status_code=200, content={
-            "document_id": doc_id
-        })
-    except (SqlAlchemyIntegrityError, Sqlite3IntegrityError) as e:
-        if "UNIQUE constraint failed: IndexedDocumentChunks.Id" in str(e):
-            logger.error(f"rag_api.index_file: {str(e)}")
-            raise ApiException(status_code=400, detail={
-                "type": "error", 
-                "code": "duplicate_chunk", 
-                "message": "A document with identical chunk is found."
+            return JSONResponse(status_code=200, content={
+                "document_id": doc_id
             })
-        id = str(uuid.uuid4())
-        logger.error(f"rag_api.index_file: {id} {str(e)}")
-        raise InternalException(id)
     except Exception as e:
+
+        if "Document already exists in the database" in str(e):
+            raise HTTPException(409,{
+                "code": "duplicate_document",
+                "message": "Document already exists in the database.",
+                "url": "/gen/v1/rag/index-file"
+            })
         id = str(uuid.uuid4())
         logger.error(f"rag_api.index_file: {id} {str(e)}")
         raise InternalException(id)
@@ -153,6 +125,44 @@ async def retrieve(request: QueryRequest = Body(...)):
     except Exception as e:
         id = str(uuid.uuid4())
         logger.error(f"rag_api.retrieve: {id} {str(e)}")
+        raise InternalException(id)
+
+### ----------------- DOCUMENTS ----------------- ###
+# Check if the content of a document exists in the collection
+# POST /gen/v1/rag/collection/{collection_name}/document_exists
+@app.post("/gen/v1/rag/collection/{collection_name}/document_exists")
+async def document_exists(collection_name, file: UploadFile = File(...)):
+    try:
+        text = await file.read()
+        text = text.decode("utf-8")
+        exists = RAG.Exists(collection_name=collection_name, text=text)
+        return JSONResponse(status_code=200, content={
+            "exists": exists
+        })
+    except Exception as e:
+        id = str(uuid.uuid4())
+        logger.error(f"rag_api.document_exists: {id} {str(e)}")
+        raise InternalException(id)
+
+# Helper function to split a document into chunks
+# POST /gen/v1/rag/document/split
+@app.post("/gen/v1/rag/document/split")
+async def document_split(file: UploadFile = File(...)):
+    try:
+        text = await file.read()
+        chunks_dir = file_utils.split_text(text=text.decode('utf-8'),chunk_size=1000,chunk_overlap=100)
+        chunks = os.listdir(chunks_dir)
+        result=[]
+        for chunk in chunks:
+            with open(os.path.join(chunks_dir, chunk), 'r') as f:
+                content = f.read()
+            result.append(content)
+        return JSONResponse(status_code=200, content={
+            "chunks": result
+        })
+    except Exception as e:
+        id = str(uuid.uuid4())
+        logger.error(f"rag_api.document_split: {id} {str(e)}")
         raise InternalException(id)
 
 ### ----------------- COLLECTIONS ----------------- ###
@@ -193,9 +203,11 @@ async def list_collections():
         logger.error(f"rag_api.list_collections: {id} {str(e)}")
         raise InternalException(id)
 
+### ----------------- DOCUMENTS ----------------- ###
+
 # GET /gen/v1/rag/collection/{collection_name}
 @app.get("/gen/v1/rag/collection/{collection_name}")
-async def list_documents(collection_name):
+async def list_documents_in_collection(collection_name):
     try:
         docs = RAG.list_documents(collection_name=collection_name)
         formatted = [{"id":doc.Id,"title":doc.Title,"size":doc.ByteSize,"chunk_count":doc.ChunkCount,"chunk_size":doc.ChunkSize,"overlap_size":doc.Overlap,"source":doc.Source} for doc in docs]
@@ -207,7 +219,19 @@ async def list_documents(collection_name):
         logger.error(f"rag_api.list_documents: {id} {str(e)}")
         raise InternalException(id)
 
-### ----------------- DOCUMENTS ----------------- ###
+# GET /gen/v1/rag/documents
+@app.get("/gen/v1/rag/documents")
+async def list_all_documents():
+    try:
+        docs = RAG.list_documents()
+        formatted = [{"id":doc.Id,"title":doc.Title,"size":doc.ByteSize,"chunk_count":doc.ChunkCount,"chunk_size":doc.ChunkSize,"overlap_size":doc.Overlap,"source":doc.Source} for doc in docs]
+        return JSONResponse(status_code=200, content={
+            "documents": formatted
+        })        
+    except Exception as e:
+        id = str(uuid.uuid4())
+        logger.error(f"rag_api.list_documents: {id} {str(e)}")
+        raise InternalException(id)
 
 # GET /gen/v1/rag/document/{document_id}
 @app.get("/gen/v1/rag/document/{document_id}")
@@ -289,10 +313,57 @@ async def delete_document(document_id):
         raise InternalException(id)
 
 ### ----------------- CHUNKS ----------------- ###
-    
-# # DELETE /gen/v1/rag/chunks/document_id/{document_id}
-# @app.delete("/gen/v1/rag/chunks/document_id/{document_id}")
-# async def delete_chunks_by_document(document_id):
+
+@app.get("/gen/v1/rag/chunks")
+async def list_chunks():
+    row_chunks = []
+    collections = RAG.list_collections()
+    if not collections:
+        return "No collections found"
+    for collection in collections:
+        columns = collection.get()
+        for i in range(len(columns['ids'])):
+            cell = {
+                'id': columns["ids"][i],
+                'documents': columns["documents"][i],
+            }
+            row_chunks.append(cell)
+    return row_chunks
+
+@app.get("/gen/v1/rag/chunks/{collection_name}")
+async def list_chunks(collection_name: str):
+    row_chunks = []
+    collection = RAG.get_collection(collection_name)
+    if not collection:
+        return "Collection not found"
+    columns = collection.get()
+    for i in range(len(columns['ids'])):
+        cell = {
+            'id': columns["ids"][i],
+            'documents': columns["documents"][i],
+        }
+        row_chunks.append(cell)
+    return row_chunks
+
+@app.get("/gen/v1/rag/chunk/{id}")
+async def get_chunk(id):
+    collections = RAG.list_collections()
+    if not collections:
+        return "No collections found"
+    collection = collections[0]
+    chunk = collection.get(ids=[id])
+    return chunk
+
+@app.delete("/gen/v1/rag/chunk/{collection_name}/{chunk_id}")
+async def delete_chunk(collection_name:str, chunk_id:str):
+    RAG.get_collection(collection_name).delete(ids=[chunk_id])
+
+@app.delete("/gen/v1/rag/chunks/{collection_name}")
+async def delete_chunk(collection_name:str):
+    ids=RAG.get_collection(collection_name).get()["ids"]
+    RAG.get_collection(collection_name).delete(ids=ids)
+
+
 
 
 

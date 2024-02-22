@@ -1,5 +1,8 @@
+import tempfile
 import time
 import os
+import uuid
+from gai.gen.rag.dalc.RAGVSRepository import RAGVSRepository
 import torch
 import gc
 from tqdm import tqdm
@@ -11,304 +14,262 @@ from gai.common.utils import get_gen_config, get_app_path
 import threading
 from gai.common import logging, file_utils
 from gai.common.StatusUpdater import StatusUpdater
-from gai.gen.rag.Repository import Repository
-from gai.gen.rag.models.IndexedDocument import IndexedDocument
+from gai.gen.rag.dalc.RAGDBRepository import RAGDBRepository
+from gai.gen.rag.dalc.IndexedDocument import IndexedDocument
 logger = logging.getLogger(__name__)
+import json
 
 
 class RAG:
 
-    def __init__(self, status_updater=None):
+    def __init__(self, status_updater=None, in_memory=True):
+
+        # Generator config
         self.generator_name = "rag"
-        config = get_gen_config()["gen"]["rag"]
+        self.config = get_gen_config()["gen"]["rag"]
         app_path = get_app_path()
-        self.model_path = os.path.join(app_path, config["model_path"])
+        self.model_path = os.path.join(app_path, self.config["model_path"])
         if (os.environ.get("RAG_MODEL_PATH")):
             model_path = os.environ["RAG_MODEL_PATH"]
             self.model_path = os.path.join(app_path, model_path)
-        self.chromadb_path = os.path.join(app_path, config["chromadb"]["path"])
+        self.n_results = self.config["chromadb"]["n_results"]
+        self.device = self.config["device"]
         
-        # sql conn
-        self.sqlite_path = os.path.join(app_path, config["sqlite"]["path"])
-        self.sqlite_string = f'sqlite:///{self.sqlite_path}'
-        self.repo = Repository(self.sqlite_string)
+        # vector store config
+        self.vs_repo = RAGVSRepository.New(in_memory)
+        
+        # document store config
+        self.db_repo = RAGDBRepository.New(in_memory)
 
-        self.n_results = config["chromadb"]["n_results"]
-        self.chunks_path = os.path.join(app_path, config["chunks"]["path"])
-        self.chunk_size = config["chunks"]["size"]
-        self.chunk_overlap = config["chunks"]["overlap"]
-        self.device = config["device"]
-        # for thread safety, using Semaphore allows for easier upgrade to support multiple generators in the future
-        self.semaphore = threading.Semaphore(1)
-        self._db = chromadb.PersistentClient(
-            path=self.chromadb_path, settings=Settings(allow_reset=True))
+        # StatusUpdater
         self.status_updater = status_updater
 
-    # This is idempotent
+        # for thread safety, using Semaphore allows for easier upgrade to support multiple generators in the future
+        self.semaphore = threading.Semaphore(1)
+
+    # Load Instructor model
     def load(self):
-        self._ef = InstructorEmbeddingFunction(
-            self.model_path, device=self.device)
+        self.vs_repo._ef = InstructorEmbeddingFunction(self.model_path, device=self.device)
 
     def unload(self):
         try:
-            del self._ef
-            del self._db
+            del self.vs_repo._ef
         except:
             pass
-        self._db = None
-        self._ef = None
+        self.vs_repo._ef = None
         gc.collect()
         torch.cuda.empty_cache()
 
     def reset(self):
         logger.info("Deleting database...")
         try:
-            self._db.reset
+            self.vs_repo.reset()
         except Exception as e:
             if not "does not exist." in str(e):
+                logger.warning(f"reset: {e}")
                 raise e
 
-    # COLLECTIONS
-    # get from chromadb
-    @staticmethod
-    def get_db():
-        try:
-            app_path = get_app_path()
-            config = get_gen_config()["gen"]["rag"]
-            chromadb_path = os.path.join(app_path, config["chromadb"]["path"])
-            db = chromadb.PersistentClient(
-                path=chromadb_path, settings=Settings(allow_reset=True))
-            return db
-        except Exception as e:
-            if not "does not exist." in str(e):
-                raise e
+#Collections-------------------------------------------------------------------------------------------------------------------------------------------
 
-    # get from chromadb
-    @staticmethod
-    def collection_exists(collection_name):
-        db = RAG.get_db()
+    def delete_collection(self, collection_name):
+        logger.info(f"Deleting {collection_name}...")
         try:
-            db.get_collection(collection_name)
-            return True
+            self.vs_repo.delete_collection(collection_name)
+            self.db_repo.delete_collection(collection_name)
         except Exception as e:
             if "does not exist." in str(e):
-                return False
-            raise e
-
-    # get from chromadb
-    @staticmethod
-    def delete_collection(collection_name):
-        logger.info(f"Deleting {collection_name}...")
-        db = RAG.get_db()
-        if RAG.collection_exists(collection_name):
-            db.delete_collection(collection_name)
-            
-        repo = RAG.get_repo()
-        docids = repo.list_docids(collection_name)
-        for docid in docids:
-            repo.delete_document(docid)
+                logger.warning(f"delete_collection: {e}")
+                return
+            raise
     
-    # get from chromadb
-    @staticmethod
-    def get_collection(collection_name):
-        db = RAG.get_db()
-        return db.get_or_create_collection(collection_name)
+    def list_collections(self):
+        return self.vs_repo.list_collections()
 
-    # get from chromadb
-    @staticmethod
-    def create_collection(collection_name):
-        db = RAG.get_db()
-        return db.get_or_create_collection(collection_name)
+#Documents-------------------------------------------------------------------------------------------------------------------------------------------
+    
+    def list_documents(self,collection_name=None):
+        return self.db_repo.list_documents(collection_name)
 
-    # get from chromadb
-    @staticmethod
-    def list_collections():
-        db = RAG.get_db()
-        return db.list_collections()
+    def get_document(self,document_id):
+        return self.db_repo.get_document(document_id)
 
-    # get from chromadb
-    @staticmethod
-    def list_chunks(collection_name):
-        return RAG.get_collection(collection_name).get()
+    def update_document(self,document):
+        return self.db_repo.update_document(document)
 
-    # get from chromadb
-    @staticmethod
-    def get_chunk(collection_name, id):
-        collection = RAG.get_collection(collection_name)
-        return collection.get(ids=[id])
+    def delete_document(self,document_id):
+        doc = self.db_repo.get_document(document_id)
+        logger.info(f"Deleting document {document_id} from collection {doc.CollectionName}...")
+        self.vs_repo.delete_chunks_by_document_id(doc.CollectionName, document_id)
+        self.db_repo.delete_document(document_id)
+            
+    def delete_chunkgroup(self,collection_name, chunkgroup_id):
+        chunkgroup = self.db_repo.get_chunkgroup(chunkgroup_id)
+        logger.info(f"Deleting chunkgroup {chunkgroup_id} from collection {collection_name} with chunksize {chunkgroup.ChunkSize} and chunk count {chunkgroup.ChunkCount}...")
+        self.vs_repo.delete_chunkgroup(collection_name, chunkgroup_id)
+        self.db_repo.delete_chunkgroup(chunkgroup_id)
 
-    # get from sqlite
-    @staticmethod
-    def get_repo():
-        app_path = get_app_path()
-        config = get_gen_config()["gen"]["rag"]
-        sqlite_path = os.path.join(app_path, config["sqlite"]["path"])
-        sqlite_string = f'sqlite:///{sqlite_path}'
-        return Repository(sqlite_string)
+#chunks-------------------------------------------------------------------------------------------------------------------------------------------
 
-    # get from sqlite
-    @staticmethod
-    def list_documents(collection_name):
-        repo = RAG.get_repo()
-        collection = repo.list_documents(collection_name)
-        return collection
+    def list_chunks(self,collection_name):
+        return self.vs_repo.list_chunks_by_collection_name(collection_name)
 
-    # get from sqlite
-    @staticmethod
-    def get_document(document_id):
-        repo = RAG.get_repo()
-        document = repo.get_document(document_id)
-        return document
+    def get_chunk(self,collection_name, chunk_id):
+        return self.vs_repo.get_chunk(collection_name, chunk_id)
 
-    # get from sqlite
-    @staticmethod
-    def update_document(document):
-        repo = RAG.get_repo()
-        return repo.update_document(document)
+#Indexing-------------------------------------------------------------------------------------------------------------------------------------------
 
-    # delete document and chunks from vector store and sqlite 
-    # NOTE: There will not be chunks shared by multiple documents because the document cannot be indexed if a chunk is already indexed
-    @staticmethod
-    def delete_document(document_id):
-        repo = RAG.get_repo()
-        vs = RAG.get_db()
-
-        # delete from vector store
-        doc = repo.get_document(document_id)
-        collection_name = doc.CollectionName
-        collection = vs.get_collection(collection_name)
-        collection.delete(ids=[chunk.ChunkId for chunk in doc.chunks])
-        logger.debug(f"Deleted {len(doc.chunks)} chunks from collection {collection_name}")
-
-        # delete from sqlite
-        repo.delete_document(document_id)
-        logger.debug(f"Deleted doc {document_id} from db")
-
-        return repo.get_document(document_id)
-
-    # INDEXING
-    def _get_collection(self, collection_name):
-        try:
-            collection = self._db.get_or_create_collection(
-                collection_name,
-                embedding_function=self._ef,
-                metadata={"hnsw:space": "cosine"}
-            )
-        except Exception as error:
-            logger.error(f"RAG._get_collection: error={error}")
-            raise error
-        return collection
-
-    # Index chunk of text into vector store locally. Used by index_async.
-    def index_chunk(self, collection_name, chunk, path_or_url, metadata={"source": "unknown"}):
-        try:
-            chunks_dir = file_utils.get_chunk_dir(
-                self.chunks_path, path_or_url)
-            curr_time = time.time()
-            utc = datetime.utcfromtimestamp(curr_time)
-            time_s = utc.strftime('%Y-%m-%d %H:%M:%S')
-            data = {
-                "chunks_dir": chunks_dir,
-                "created": time_s
-            }
-            if metadata:
-                data = {**data, **metadata}
-            collection = self._get_collection(collection_name)
-            chunk_id = file_utils.create_chunk_id(chunk)
-            collection.upsert(documents=[chunk], metadatas=[
-                              data], ids=[chunk_id])
-            return chunk_id
-        except Exception as error:
-            logger.error(f"RAG.index_chunk: error={error}")
-            raise error
+    # # Index chunk of text into vector store locally. Used by index_async.
+    # def index_chunk(self, collection_name, chunk, path_or_url, metadata={"source": "unknown"}):
+    #     try:
+    #         chunks_dir = file_utils.get_chunk_dir(
+    #             self.chunks_path, path_or_url)
+    #         curr_time = time.time()
+    #         utc = datetime.utcfromtimestamp(curr_time)
+    #         time_s = utc.strftime('%Y-%m-%d %H:%M:%S')
+    #         data = {
+    #             "chunks_dir": chunks_dir,
+    #             "created": time_s
+    #         }
+    #         if metadata:
+    #             data = {**data, **metadata}
+    #         collection = self._get_collection(collection_name)
+    #         chunk_id = file_utils.create_chunk_id(chunk)
+    #         collection.upsert(documents=[chunk], metadatas=[
+    #                           data], ids=[chunk_id])
+    #         return chunk_id
+    #     except Exception as error:
+    #         logger.error(f"RAG.index_chunk: error={error}")
+    #         raise error
 
     # Split text in temp dir and index each chunk into vector store locally.
     # Public. Used by rag_api and Gaigen.
-    async def index_async(self, collection_name, text, path_or_url, metadata={"source": "unknown"}, chunk_size=None, chunk_overlap=None, status_updater=None):
+    async def index_async(self, 
+        collection_name, 
+        file_path, 
+        file_type=None,
+        title='', 
+        source= '', 
+        abstract='',
+        authors='',
+        publisher ='',
+        published_date='', 
+        comments='',
+        keywords='',
+        chunk_size=None, 
+        chunk_overlap=None, 
+        status_updater=None):
         if status_updater:
             logger.info(
                 f"RAG.index_async: status_updater detected.")
+            
+        if file_type is None:
+            _,file_type = os.path.splitext(file_path)
 
-        chunks = []
+        ids = []
+
+        if chunk_size is None:
+            chunk_size = self.config["chunks"]["size"]
+        if chunk_overlap is None:
+            chunk_overlap = self.config["chunks"]["overlap"]
+
+        # Create document ID first and check for duplicates
         try:
-            if chunk_size is None:
-                chunk_size = self.chunk_size
-            if chunk_overlap is None:
-                chunk_overlap = self.chunk_overlap
-            chunks_dir = file_utils.get_chunk_dir(
-                self.chunks_path, path_or_url)
-            file_utils.split_chunks(text=text,
-                                    chunks_dir=chunks_dir,
-                                    chunk_size=chunk_size,
-                                    chunk_overlap=chunk_overlap)
-            chunks = os.listdir(chunks_dir)
+            doc_id = self.db_repo.create_document_hash(file_path=file_path)
         except Exception as error:
             logger.error(
-                f"RAG.index_async: Failed to split chunks. error={error}")
+                f"RAG.index_async: Failed to create document hash. error={error}. Not created in database yet.")
             raise error
-        ids = []
-        count = len(chunks)
-        last_chunk = -1
-        for i, chunk_id in tqdm(enumerate(chunks)):
-            with open(os.path.join(chunks_dir, chunk_id), 'r') as f:
-                chunk = f.read()
-            self.index_chunk(collection_name, chunk, chunks_dir, metadata)
-            ids.append(chunk_id)
-            logger.debug(
-                f"RAG.index_async: Indexed {i+1}/{count} chunk {chunk_id} into collection {collection_name}")
-
-            # Callback for progress update
-            if status_updater:
-                logger.debug(f"RAG.index_async: Send progress {i+1} to updater")
-                await status_updater.update_progress(i+1, count)
-
-        # Send stop token
-        if status_updater:
-            logger.debug("RAG.index_async: Sending stop token")
-            await status_updater.update_stop()
-
-        # Update sqlite
+        
         try:
-            doc = IndexedDocument()
-            doc.CollectionName = collection_name
-            doc.ChunkSize = chunk_size
-            doc.ByteSize = len(text)
-            doc.Overlap = chunk_overlap
-            doc.Title = metadata.get('title', '')
-            doc.FileName = metadata.get('filename', '')
-            doc.Source = metadata.get('source', '')
-            doc.Authors = metadata.get('authors', '')
-            doc.Abstract = metadata.get('abstract', '')
-            doc.PublishedDate = metadata.get('published_date', '')
-            doc.Comments = metadata.get('comments', '')
-            doc.CreatedAt = datetime.now()
-            doc.UpdatedAt = datetime.now()
-            doc.IsActive = True
 
-            doc_id = self.repo.create_document(doc, ids)
-            logger.debug(f"RAG.index_async: Indexed document {doc_id} into sqlite")
+            # Create the document header to store the original
+            doc=self.db_repo.create_document_header(
+                id = doc_id,
+                collection_name=collection_name, 
+                file_path=file_path, 
+                file_type=file_type,
+                title=title, 
+                source=source, 
+                abstract=abstract,
+                authors=authors,
+                publisher = publisher,
+                publishedDate=published_date, 
+                comments=comments,
+                keywords=keywords)
+            
+            # Create the first chunk group based on the default splitting algorithm
+            chunkgroup = self.db_repo.create_chunkgroup(
+                doc_id=doc.Id, 
+                chunk_size=chunk_size, 
+                chunk_overlap=chunk_overlap, 
+                splitter=file_utils.split_file)
+            
+            # Create the chunks in the database
+            chunks = self.db_repo.create_chunks(
+                chunkgroup.Id,
+                chunkgroup.ChunksDir
+            )
 
+            # Index each chunk into the vector store
+            logger.info(f"RAG.index_async: Begin indexing...")
+            for i, chunk in tqdm(enumerate(chunks)):
+                chunk = self.db_repo.get_chunk(chunk.Id)
+                self.vs_repo.index_chunk(
+                    collection_name=collection_name, 
+                    content=chunk.Content, 
+                    chunk_id=chunk.Id, 
+                    document_id=doc_id,
+                    chunkgroup_id=chunkgroup.Id,
+                    source=doc.Source if doc.Source else "",
+                    abstract=doc.Abstract if doc.Abstract else "",
+                    title=doc.Title if doc.Title else "",
+                    published_date=doc.PublishedDate if doc.PublishedDate else "",
+                    keywords=doc.Keywords if doc.Keywords else ""
+                )
+                ids.append(chunk.Id)
+                logger.debug(
+                    f"RAG.index_async: Indexed {i+1}/{len(chunks)} chunk {chunk.Id} into collection {collection_name}")
+
+                # Callback for progress update
+                if status_updater:
+                    logger.debug(f"RAG.index_async: Send progress {i+1} to updater")
+                    await status_updater.update_progress(i+1, len(chunks))
+
+            # Send stop token
+            if status_updater:
+                logger.debug("RAG.index_async: Sending stop token")
+                await status_updater.update_stop()
+
+            logger.info(f"RAG.index_async: indexing...done")
             return doc_id
         except Exception as error:
-            logger.error(f"RAG.index_async: Failed to insert document into sqlite. error={error}")
+            # Once encounter an exception, revert to a clean state.
+            self.vs_repo.delete_document(collection_name, doc_id)
+            self.db_repo.delete_document(doc_id)
+            if "Document already exists" in str(error):
+                logger.error(
+                    f"File already exists in the database. doc_id={doc_id}")
+                raise error
+
+            logger.error(
+                f"RAG.index_async: Failed to create document header. error={error}")
             raise error
 
     # RETRIEVAL
-
     def retrieve(self, collection_name, query_texts, n_results=None):
         logger.info(f"Retrieving by query {query_texts}...")
 
-        collection = self._get_collection(collection_name)
         if n_results is None:
             n_results = self.n_results
-        result = collection.query(query_texts=query_texts, n_results=n_results)
+        result = self.vs_repo.retrieve(collection_name, query_texts, n_results)
 
         # Not found
         if 'ids' not in result or result['ids'] is None or len(result['ids']) == 0 or len(result['ids'][0]) == 0:
             return None
 
-        if len(result['ids']) > 0:
-            logger.debug('result=', result)
+        ids = result['ids']
+        if len(ids) > 0:
+            logger.debug(f'result={result.to_json()}')
 
         import pandas as pd
         df = pd.DataFrame({
@@ -321,3 +282,5 @@ class RAG:
         # drop duplicates
         return df.drop_duplicates(subset=['ids']).sort_values('distances', ascending=True)
 
+
+        

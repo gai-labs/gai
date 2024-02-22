@@ -17,10 +17,11 @@ import torch
 import gc
 import re
 import os
-from gai.common import logging, generators_utils
+from gai.common import generators_utils
 from gai.common.utils import this_dir, get_app_path
 from gai.common.generators_utils import chat_string_to_list, has_ai_placeholder
-logger = logging.getLogger(__name__)
+from gai.common.logging import getLogger
+logger = getLogger(__name__)
 
 
 class ExLlama_TTT:

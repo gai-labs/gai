@@ -1,7 +1,10 @@
 import threading
 from gai.common import logging, generators_utils
+import os
+from dotenv import load_dotenv
+load_dotenv()
 logger = logging.getLogger(__name__)
-
+in_memory = os.environ.get("IN_MEMORY",True).lower() != "false"
 
 class Gaigen:
     __instance = None       # singleton
@@ -59,7 +62,7 @@ class Gaigen:
             self.generator = ITT(generator_name=generator_name)
         elif generator_type == "rag":
             from gai.gen.rag import RAG
-            self.generator = RAG()
+            self.generator = RAG(in_memory=in_memory)
         else:
             logger.error(
                 f"Gaigen.load: The generator_type {generator_type} is not supported.")
@@ -104,7 +107,21 @@ class Gaigen:
             return self.generator.get_token_ids(text)
         raise Exception("get_token_ids is not supported by this generator.")
 
-    async def index_async(self, collection_name, text, path_or_url, metadata={"source": "unknown"}, chunk_size=None, chunk_overlap=None, status_updater=None):
+    async def index_async(self, 
+                          collection_name, 
+                          file_path, 
+                          file_type=None,
+                          title='', 
+                          source= '', 
+                          abstract='',
+                          authors='',
+                          publisher ='',
+                          published_date='', 
+                          comments='',
+                          keywords='',
+                          chunk_size=None, 
+                          chunk_overlap=None, 
+                          status_updater=None):
         if self.generator is None:
             logger.error("Gaigen.create: Generator is not loaded.")
             raise Exception("Gaigen.create: Generator is not loaded.")
@@ -115,7 +132,21 @@ class Gaigen:
             raise Exception(
                 f"Gaigen.index: The generator {self.generator.generator_name} does not support indexing.")
         with self.semaphore:
-            return await self.generator.index_async(collection_name, text, path_or_url, metadata, chunk_size, chunk_overlap, status_updater)
+            return await self.generator.index_async(
+                collection_name=collection_name, 
+                file_path=file_path,
+                file_type=file_type,
+                title=title,
+                source=source,
+                abstract=abstract,
+                authors=authors,
+                publisher=publisher,
+                published_date=published_date,
+                comments=comments,
+                keywords=keywords,
+                chunk_size=chunk_size,
+                chunk_overlap=chunk_overlap,
+                status_updater=status_updater)
 
     def retrieve(self, collection_name, query_texts, n_results=None):
         if self.generator is None:

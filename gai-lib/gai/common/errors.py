@@ -1,41 +1,55 @@
-class ApiException(Exception):
-    def __init__(self, status_code, code, message, url):
-        self.status_code = status_code
-        self.code = code
-        self.url = url
-        super().__init__(message)
+from fastapi import HTTPException
 
-class InternalException(Exception):
+class ApiException(HTTPException):
+    def __init__(self, status_code, code, message, url=None, *args, **kwargs):
+        super().__init__(status_code=status_code, detail = {
+            "code": code,
+            "message": message,
+            "url": url
+        })
+
+class InternalException(HTTPException):
     def __init__(self, error_id):
-        self.status_code = 500
-        self.code = "uknown_error"
-        self.id = error_id
-        super().__init__(message="An unexpected error occurred. Please try again later.")
+        detail = {
+            "code": "unknown_error",
+            "message": "An unexpected error occurred. Please try again later.",
+            "id": error_id,
+        }
+        super().__init__(status_code=500, detail=detail)
 
-class ContextLengthExceededException(Exception):
+class ContextLengthExceededException(HTTPException):
     def __init__(self):
-        self.status_code = 400
-        self.code = "context_length_exceeded"
-        super().__init__(message="The message has exceeded the model's context length.")
+        detail={
+            "code": "context_length_exceeded",
+            "message": "The context length exceeded the maximum allowed length."
+        }
+        super().__init__(status_code=400, detail=detail)
 
-class GeneratorMismatchException(Exception):
+class GeneratorMismatchException(HTTPException):
     def __init__(self):
-        self.status_code = 400
-        self.code = "generator_mismatch"
-        super().__init__(message="The model does not correspond to this service.")
+        detail={
+            "code": "generator_mismatch",
+            "message": "The model does not correspond to this service."
+        }
+        super().__init__(status_code=400, detail=detail)
 
-class UserNotFoundException(Exception):
+class UserNotFoundException(HTTPException):
     def __init__(self,user_id=None):
-        self.status_code = 404
-        self.code = "user_not_found"
-        super().__init__(message="User not found")
-        if (user_id):
-            super().__init__(message=f"User {user_id} not found")
+        detail={
+            "code": "user_not_found",
+            "message": "User not found"
+        }
+        if user_id:
+            detail["message"] = f"User {user_id} not found"
+        super().__init__(status_code=404, detail=detail)
 
-class MessageNotFoundException(Exception):
+class MessageNotFoundException(HTTPException):
     def __init__(self,message_id=None):
-        self.status_code = 404
-        self.code = "message_not_found"
-        super().__init__(message="Message not found")
-        if (message_id):
-            super().__init__(message=f"Message {message_id} not found")
+        detail={
+            "code": "message_not_found",
+            "message": "Message not found"
+        }
+        if message_id:
+            detail["message"] = f"Message {message_id} not found"
+        super().__init__(status_code=404, detail=detail)
+

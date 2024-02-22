@@ -1,7 +1,7 @@
 import shutil
 from setuptools import setup, find_packages
 from os.path import abspath
-import subprocess, os, sys
+import subprocess, os, sys,json
 from setuptools.command.install import install
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -20,7 +20,10 @@ class CustomInstall(install):
         home_dir = os.path.expanduser("~")
         gairc_file = os.path.join(home_dir, ".gairc")
         with open(gairc_file, 'w') as f:
-            f.write("~/gai")
+                config = {
+                    "app_dir": "~/gai"
+                }
+                f.write(json.dumps(config, indent=4))
 
         gai_dir = os.path.join(home_dir, "gai")
         os.makedirs(gai_dir, exist_ok=True)
