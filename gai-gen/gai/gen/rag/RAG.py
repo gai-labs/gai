@@ -118,29 +118,6 @@ class RAG:
 
 #Indexing-------------------------------------------------------------------------------------------------------------------------------------------
 
-    # # Index chunk of text into vector store locally. Used by index_async.
-    # def index_chunk(self, collection_name, chunk, path_or_url, metadata={"source": "unknown"}):
-    #     try:
-    #         chunks_dir = file_utils.get_chunk_dir(
-    #             self.chunks_path, path_or_url)
-    #         curr_time = time.time()
-    #         utc = datetime.utcfromtimestamp(curr_time)
-    #         time_s = utc.strftime('%Y-%m-%d %H:%M:%S')
-    #         data = {
-    #             "chunks_dir": chunks_dir,
-    #             "created": time_s
-    #         }
-    #         if metadata:
-    #             data = {**data, **metadata}
-    #         collection = self._get_collection(collection_name)
-    #         chunk_id = file_utils.create_chunk_id(chunk)
-    #         collection.upsert(documents=[chunk], metadatas=[
-    #                           data], ids=[chunk_id])
-    #         return chunk_id
-    #     except Exception as error:
-    #         logger.error(f"RAG.index_chunk: error={error}")
-    #         raise error
-
     # Split text in temp dir and index each chunk into vector store locally.
     # Public. Used by rag_api and Gaigen.
     async def index_async(self, 
@@ -193,7 +170,7 @@ class RAG:
                 abstract=abstract,
                 authors=authors,
                 publisher = publisher,
-                publishedDate=published_date, 
+                published_date=published_date, 
                 comments=comments,
                 keywords=keywords)
             
@@ -223,7 +200,7 @@ class RAG:
                     source=doc.Source if doc.Source else "",
                     abstract=doc.Abstract if doc.Abstract else "",
                     title=doc.Title if doc.Title else "",
-                    published_date=doc.PublishedDate if doc.PublishedDate else "",
+                    published_date=doc.PublishedDate.strftime('%Y-%b-%d') if doc.PublishedDate else "",
                     keywords=doc.Keywords if doc.Keywords else ""
                 )
                 ids.append(chunk.Id)

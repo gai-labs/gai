@@ -33,11 +33,14 @@ class UT0010_RAGDBRepository_test(unittest.TestCase):
         self.assertTrue(content.startswith('PM Lee Hsien Loong delivered'))
 
 #-------------------------------------------------------------------------------------------------------------------------------------------
-    def test_ut0013_create_document_id(self):
+    def test_ut0013_create_document_hash(self):
         # Arrange
         file_path = os.path.join(os.path.dirname(__file__), "attention-is-all-you-need.pdf")
         doc_id = self.repo.create_document_hash(file_path)
-        self.assertEqual("f9273d797cd489295a155dea10368a6a6df70686a692fbf8b5e6bc60fb23a72d",doc_id)
+
+        #convert to base 64
+
+        self.assertEqual("-Sc9eXzUiSlaFV3qEDaKam33Boamkvv4tea8YPsjpy0",doc_id)
 
     def test_ut0014_create_document_header(self):
 
@@ -46,7 +49,7 @@ class UT0010_RAGDBRepository_test(unittest.TestCase):
 
         # Act
         doc=self.repo.create_document_header(
-            id="f9273d797cd489295a155dea10368a6a6df70686a692fbf8b5e6bc60fb23a72d",
+            id="-Sc9eXzUiSlaFV3qEDaKam33Boamkvv4tea8YPsjpy0",
             collection_name='demo', 
             file_path=file_path, 
             file_type='pdf',
@@ -95,7 +98,7 @@ class UT0010_RAGDBRepository_test(unittest.TestCase):
         # Act
         try:
             self.repo.create_document_header(
-                id="f9273d797cd489295a155dea10368a6a6df70686a692fbf8b5e6bc60fb23a72d",
+                id="-Sc9eXzUiSlaFV3qEDaKam33Boamkvv4tea8YPsjpy0",
                 collection_name='demo', 
                 file_path=file_path, 
                 file_type='pdf',
@@ -115,7 +118,7 @@ class UT0010_RAGDBRepository_test(unittest.TestCase):
 
         # Act
         chunkgroup = self.repo.create_chunkgroup(
-            doc_id='f9273d797cd489295a155dea10368a6a6df70686a692fbf8b5e6bc60fb23a72d', 
+            doc_id='-Sc9eXzUiSlaFV3qEDaKam33Boamkvv4tea8YPsjpy0', 
             chunk_size=1000, 
             chunk_overlap=100, 
             splitter=file_utils.split_file)
@@ -125,7 +128,7 @@ class UT0010_RAGDBRepository_test(unittest.TestCase):
         Session = sessionmaker(bind=engine)
         session = Session()
 
-        retrieved_doc = session.query(IndexedDocument).filter_by(Id='f9273d797cd489295a155dea10368a6a6df70686a692fbf8b5e6bc60fb23a72d').first()
+        retrieved_doc = session.query(IndexedDocument).filter_by(Id='-Sc9eXzUiSlaFV3qEDaKam33Boamkvv4tea8YPsjpy0').first()
         retrieved_group = session.query(IndexedDocumentChunkGroup).filter_by(Id=chunkgroup.Id).first()
 
         # Assert: Can get group from doc
@@ -143,7 +146,7 @@ class UT0010_RAGDBRepository_test(unittest.TestCase):
     def test_ut0017_create_chunks(self):
 
         #Act
-        group = self.repo.get_document('f9273d797cd489295a155dea10368a6a6df70686a692fbf8b5e6bc60fb23a72d').ChunkGroups[0]
+        group = self.repo.get_document('-Sc9eXzUiSlaFV3qEDaKam33Boamkvv4tea8YPsjpy0').ChunkGroups[0]
         chunks = self.repo.create_chunks(group.Id,group.ChunksDir)
 
         # Assert
@@ -155,7 +158,7 @@ class UT0010_RAGDBRepository_test(unittest.TestCase):
             self.assertEqual(retrieved_chunks[i].Id,chunks[i].Id)
 
         # List only chunks by id
-        retrieved_chunks = self.repo.list_chunks_by_document_id('f9273d797cd489295a155dea10368a6a6df70686a692fbf8b5e6bc60fb23a72d')
+        retrieved_chunks = self.repo.list_chunks_by_document_id('-Sc9eXzUiSlaFV3qEDaKam33Boamkvv4tea8YPsjpy0')
         self.assertEqual(len(chunks), len(retrieved_chunks))
         for i in range(len(retrieved_chunks)):
             self.assertEqual(retrieved_chunks[i].Id,chunks[i].Id)
@@ -165,16 +168,16 @@ class UT0010_RAGDBRepository_test(unittest.TestCase):
     def test_ut0018_delete_document(self):
 
         # Act
-        self.repo.delete_document('f9273d797cd489295a155dea10368a6a6df70686a692fbf8b5e6bc60fb23a72d')
+        self.repo.delete_document('-Sc9eXzUiSlaFV3qEDaKam33Boamkvv4tea8YPsjpy0')
 
         # Assert
         engine = self.repo.engine
         Session = sessionmaker(bind=engine)
         session = Session()
-        retrieved_doc = session.query(IndexedDocument).filter_by(Id='f9273d797cd489295a155dea10368a6a6df70686a692fbf8b5e6bc60fb23a72d').first()
+        retrieved_doc = session.query(IndexedDocument).filter_by(Id='-Sc9eXzUiSlaFV3qEDaKam33Boamkvv4tea8YPsjpy0').first()
         self.assertIsNone(retrieved_doc)
 
-        retrieved_group = session.query(IndexedDocumentChunkGroup).filter_by(DocumentId='f9273d797cd489295a155dea10368a6a6df70686a692fbf8b5e6bc60fb23a72d').first()
+        retrieved_group = session.query(IndexedDocumentChunkGroup).filter_by(DocumentId='-Sc9eXzUiSlaFV3qEDaKam33Boamkvv4tea8YPsjpy0').first()
         self.assertIsNone(retrieved_group)
 
         retrieved_chunks = session.query(IndexedDocumentChunk).all()
@@ -186,7 +189,7 @@ class UT0010_RAGDBRepository_test(unittest.TestCase):
 
         # Arrange
         doc_id=self.repo.create_document_header(
-            id='f9273d797cd489295a155dea10368a6a6df70686a692fbf8b5e6bc60fb23a72d',
+            id='-Sc9eXzUiSlaFV3qEDaKam33Boamkvv4tea8YPsjpy0',
             collection_name='demo', 
             file_path=os.path.join(os.path.dirname(__file__), "attention-is-all-you-need.pdf"),
             file_type='pdf'
@@ -199,7 +202,7 @@ class UT0010_RAGDBRepository_test(unittest.TestCase):
         engine = self.repo.engine
         Session = sessionmaker(bind=engine)
         session = Session()
-        retrieved_doc = session.query(IndexedDocument).filter_by(Id='f9273d797cd489295a155dea10368a6a6df70686a692fbf8b5e6bc60fb23a72d').first()
+        retrieved_doc = session.query(IndexedDocument).filter_by(Id='-Sc9eXzUiSlaFV3qEDaKam33Boamkvv4tea8YPsjpy0').first()
         self.assertIsNone(retrieved_doc)
 
 #-------------------------------------------------------------------------------------------------------------------------------------------
@@ -208,7 +211,7 @@ class UT0010_RAGDBRepository_test(unittest.TestCase):
             
             # Arrange
             doc=self.repo.create_document_header(
-                id='f9273d797cd489295a155dea10368a6a6df70686a692fbf8b5e6bc60fb23a72d',
+                id='-Sc9eXzUiSlaFV3qEDaKam33Boamkvv4tea8YPsjpy0',
                 collection_name='demo', 
                 file_path=os.path.join(os.path.dirname(__file__), "attention-is-all-you-need.pdf"),
                 file_type='pdf'
@@ -221,7 +224,7 @@ class UT0010_RAGDBRepository_test(unittest.TestCase):
             self.repo.create_chunks(group.Id,group.ChunksDir)
     
             # Act
-            self.repo.delete_chunks_by_document_id('f9273d797cd489295a155dea10368a6a6df70686a692fbf8b5e6bc60fb23a72d')
+            self.repo.delete_chunks_by_document_id('-Sc9eXzUiSlaFV3qEDaKam33Boamkvv4tea8YPsjpy0')
     
             # Assert
             engine = self.repo.engine

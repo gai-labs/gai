@@ -4,6 +4,7 @@ import tempfile,shutil,re
 from . import constants,utils
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from io import TextIOWrapper
+import hashlib,base64
 
 # Remove most non-alphanumeric characters from a filename
 def clean_paths(file_path_or_paths):
@@ -151,7 +152,7 @@ def split_text(text, sub_dir=None ,chunk_size=2000,chunk_overlap=200):
     for chunk in chunks:
 
         # Use hash of chunk as id
-        chunk_id = create_chunk_id(chunk.page_content)
+        chunk_id = create_chunk_id_base64(chunk.page_content)
         chunk.metadata = {
             "chunk_id": chunk_id,
             "chunk_size": len(chunk.page_content)
@@ -180,3 +181,27 @@ def create_chunk_id(text):
         # If 'text' is not a byte string (assuming it's a str), encode it
         byte_text = text.encode('utf-8')    
     return hashlib.sha256(byte_text).hexdigest()
+
+'''
+Generates a URL and filesystem safe Base64 encoded SHA-256 hash of the input text.
+
+Args:
+text (str or bytes): The input text to hash.
+
+Returns:
+str: The URL and filesystem safe Base64 encoded SHA-256 hash of the input text.
+'''
+def create_chunk_id_base64(text):
+    if isinstance(text, bytes):
+        byte_text = text
+    else:
+        # If 'text' is not a byte string (assuming it's a str), encode it
+        byte_text = text.encode('utf-8')
+    
+    # Generate SHA256 hash (in binary form)
+    hash_digest = hashlib.sha256(byte_text).digest()
+    
+    # Convert the binary hash to URL and filesystem safe Base64
+    base64_encoded_safe = base64.urlsafe_b64encode(hash_digest).decode().rstrip('=')
+    
+    return base64_encoded_safe

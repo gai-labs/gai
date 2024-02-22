@@ -8,7 +8,7 @@ class Chunker:
 
     @staticmethod
     def split(text, chunk_size=None, chunk_overlap=None):
-        chunk_hash = file_utils.create_chunk_id(text)
+        chunk_hash = file_utils.create_chunk_id_base64(text)
         chunks=[]
         try:
             if chunk_size is None:

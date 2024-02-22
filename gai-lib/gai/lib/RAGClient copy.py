@@ -3,7 +3,7 @@ import requests
 import json
 from gai.common.utils import get_lib_config
 from fastapi import WebSocketDisconnect
-from gai.common.http_utils import http_post, http_delete,http_get,http_delete_async
+from gai.common.http_utils import http_post, http_post_async, http_delete,http_get,http_delete_async
 from gai.common.logging import getLogger
 from gai.common.errors import ApiException
 logger = getLogger(__name__)
@@ -19,12 +19,33 @@ class RAGClient(ClientBase):
             self.config["generators"]["rag"]["url"].lstrip('/'))
         logger.debug(f'base_url={self.base_url}')
 
+### ----------------- INDEXING ----------------- ###
+
     # Provides an updater to get chunk indexing status
     # NOTE: The update is only relevant if this library is used in a FastAPI application with a websocket connection
-    async def index_file_async(self, collection_name, file_path, metadata={"source": "unknown"}, progress_updater=None):
+    async def index_file_async(
+        self, 
+        collection_name, 
+        file_path, 
+        title="",
+        source="",
+        authors="",
+        publisher="",
+        published_date="",
+        comments="",
+        keywords="", 
+        progress_updater=None):
         url=os.path.join(self.base_url,"index-file")
-
-        # We will assume file ending with *.pdf to be PDF but this check should be done before the call.
+        metadata = {
+            "title": title,
+            "source": source,
+            "authors": authors,
+            "publisher": publisher,
+            "published_date": published_date,
+            "comments": comments,
+            "keywords": keywords
+        }
+       # We will assume file ending with *.pdf to be PDF but this check should be done before the call.
         mode = 'rb' if file_path.endswith('.pdf') else 'r'
         with open(file_path, mode) as f:
             files = {
@@ -32,7 +53,7 @@ class RAGClient(ClientBase):
                 "metadata": (None, json.dumps(metadata), "application/json"),
                 "collection_name": (None, collection_name, "text/plain")
             }
-            response = http_post(url=url, files=files)
+            response = await http_post_async(url=url, files=files)
 
         # Callback for progress update (returns a number between 0 and 100)
         if progress_updater:
@@ -60,11 +81,30 @@ class RAGClient(ClientBase):
                     f"RetrievalGeneration.index_async: Update websocket progress failed. Error={str(e)}")
                 pass
 
-            return response
+        return json.loads(response.text)
 
     # synchronous version of index_file_async
-    def index_file(self, collection_name, file_path, metadata={"source": "unknown"}, progress_updater=None):
+    def index_file(self, 
+        collection_name, 
+        file_path, 
+        title="",
+        source="",
+        authors="",
+        publisher="",
+        published_date="",
+        comments="",
+        keywords="", 
+        progress_updater=None):
         url = os.path.join(self.base_url,"index-file")
+        metadata = {
+            "title": title,
+            "source": source,
+            "authors": authors,
+            "publisher": publisher,
+            "published_date": published_date,
+            "comments": comments,
+            "keywords": keywords
+        }
 
         # We will assume file ending with *.pdf to be PDF but this check should be done before the call.
         mode = 'rb' if file_path.endswith('.pdf') else 'r'

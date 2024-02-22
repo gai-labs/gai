@@ -4,7 +4,7 @@ from datetime import datetime
 from uuid import UUID, uuid4
 
 class IndexedDocumentPydantic(BaseModel):
-    Id: str = Field(default_factory=uuid4)
+    Id: str = Field(...)
     CollectionName: str
     ByteSize: int
     FileName: Optional[str] = None

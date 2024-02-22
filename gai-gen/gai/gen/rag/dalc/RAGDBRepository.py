@@ -110,7 +110,7 @@ class RAGDBRepository:
     '''
     def create_document_hash(self, file_path):
         text = self.load_and_convert(file_path)
-        document_id = file_utils.create_chunk_id(text)
+        document_id = file_utils.create_chunk_id_base64(text)
         Session = sessionmaker(bind=self.engine)
         session = Session()
         try:
@@ -141,7 +141,7 @@ class RAGDBRepository:
         abstract=None,
         authors=None,
         publisher=None,
-        publishedDate=None,
+        published_date=None,
         comments=None,
         keywords=None
         ):
@@ -171,7 +171,7 @@ class RAGDBRepository:
             document.Abstract = abstract
             document.Authors = authors
             document.Publisher = publisher
-            document.PublishedDate = publishedDate
+            document.PublishedDate = published_date
             document.Comments = comments
             document.Keywords = keywords
             document.IsActive = True
@@ -298,14 +298,19 @@ class RAGDBRepository:
         try:
             # Load text from database or load text converted from pdf from database
             document = session.query(IndexedDocument).filter_by(Id=doc_id).first()
+            if document is None:
+                raise ValueError(f"No document found with the provided Id: {doc_id}")
+            
             if document.FileType == 'pdf':
                 import tempfile
                 with tempfile.NamedTemporaryFile() as temp_file:
                     temp_file.write(document.File)
                     temp_file_path = temp_file.name
                     text = PDFConvert.pdf_to_text(temp_file_path)
-            else:
+            elif document.FileType == 'txt':
                 text = document.File.decode('utf-8')
+            else:
+                raise ValueError(f"Unsupported file type: {document.FileType}")
             
             # Write the text into a temp text file
             filename = ".".join(document.FileName.split(".")[:-1])
@@ -426,7 +431,7 @@ class RAGDBRepository:
                     chunk.ByteSize = len(chunk.Content)
 
                 # Create chunk hash and check for mismatch
-                chunk.ChunkHash = file_utils.create_chunk_id(chunk.Content)
+                chunk.ChunkHash = file_utils.create_chunk_id_base64(chunk.Content)
                 if (chunk.ChunkHash != chunk_id):
                     raise ValueError(f"Chunk hash mismatch: {chunk.ChunkHash} != {chunk_id}")
 

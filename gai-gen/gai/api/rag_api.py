@@ -1,10 +1,5 @@
 import uuid
 from gai.common.errors import *
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import create_engine
-from sqlalchemy.exc import IntegrityError as SqlAlchemyIntegrityError
-from sqlite3 import IntegrityError as Sqlite3IntegrityError
-
 from fastapi import FastAPI, Body, Form, File, UploadFile
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
@@ -75,9 +70,9 @@ async def index_file(collection_name: str = Form(...), file: UploadFile = File(.
                 content = await file.read()  # Read the content of the uploaded file
                 file_object.write(content)
 
-            # Give the path to the file to the RAG
+            # Give the temp file path to the RAG
             metadata_dict = json.loads(metadata)
-            doc_id = await gen.index_async(
+            doc = await gen.index_async(
                 collection_name=collection_name,
                 file_path=file_location,
                 file_type=file.filename.split(".")[-1],
@@ -91,16 +86,11 @@ async def index_file(collection_name: str = Form(...), file: UploadFile = File(.
                 status_updater=status_updater)
 
             return JSONResponse(status_code=200, content={
-                "document_id": doc_id
+                "document_id": doc.Id
             })
     except Exception as e:
-
         if "Document already exists in the database" in str(e):
-            raise HTTPException(409,{
-                "code": "duplicate_document",
-                "message": "Document already exists in the database.",
-                "url": "/gen/v1/rag/index-file"
-            })
+            raise DuplicatedDocumentException()
         id = str(uuid.uuid4())
         logger.error(f"rag_api.index_file: {id} {str(e)}")
         raise InternalException(id)
@@ -173,18 +163,15 @@ async def delete_collection(collection_name):
     try:
         if collection_name not in [collection.name for collection in RAG.list_collections()]:
             logger.warning(f"rag_api.delete_collection: Collection with name={collection_name} not found.")
-            # Bypass the error handler and return a 404 directly            
-            return JSONResponse(status_code=404, content={
-                "type": "error", 
-                "code": "collection_not_found", 
-                "message": "The specified collection does not exist."
-            })
+            raise CollectionNotFoundException(collection_name)
 
         RAG.delete_collection(collection_name=collection_name)
         after = RAG.list_collections()
         return JSONResponse(status_code=200, content={
             "count": len(after)
         })
+    except CollectionNotFoundException as e:
+        raise e
     except Exception as e:
         id = str(uuid.uuid4())
         logger.error(f"rag_api.delete_collection: {id} {str(e)}")
@@ -240,16 +227,13 @@ async def get_document(document_id):
         document = RAG.get_document(document_id=document_id)
         if document is None:
             logger.warning(f"rag_api.get_documents: Document with Id={document_id} not found.")
-            # Bypass the error handler and return a 404 directly
-            return JSONResponse(status_code=404, content={
-                "type": "error", 
-                "code": "document_not_found", 
-                "message": f"Document with Id={document_id} not found."
-            })
+            raise DocumentNotFoundException(document_id)
 
         return JSONResponse(status_code=200, content={
             "document": jsonable_encoder(document)
         })
+    except DocumentNotFoundException as e:
+        raise e
     except Exception as e:
         id = str(uuid.uuid4())
         logger.error(f"rag_api.get_document: {id} {str(e)}")
@@ -273,17 +257,15 @@ async def update_document(req: UpdateDocumentRequest = Body(...)):
         if doc is None:
             logger.warning(f"Document with Id={req.Id} not found.")
             # Bypass the error handler and return a 404 directly
-            return JSONResponse(status_code=404, content={
-                "type": "error", 
-                "code": "document_not_found", 
-                "message": f"Document with Id={req.Id} not found."
-            })
+            raise DocumentNotFoundException(req.Id)
                 
         updated_doc = RAG.update_document(document=req)
         return JSONResponse(status_code=200, content={
             "message": "Document updated successfully",
             "document": updated_doc
         })
+    except DocumentNotFoundException as e:
+        raise e
     except Exception as e:
         id = str(uuid.uuid4())
         logger.error(f"rag_api.update_document: {id} {str(e)}")
@@ -296,17 +278,14 @@ async def delete_document(document_id):
         doc = RAG.get_document(document_id=document_id)
         if doc is None:
             logger.warning(f"Document with Id={document_id} not found.")
-            # Bypass the error handler and return a 404 directly
-            return JSONResponse(status_code=404, content={
-                "type": "error", 
-                "code": "document_not_found", 
-                "message": f"Document with Id={document_id} not found."
-            })
+            raise DocumentNotFoundException(document_id)
         
         RAG.delete_document(document_id=document_id)
         return JSONResponse(status_code=200, content={
             "message": f"Document with id {document_id} deleted successfully"
         })
+    except DocumentNotFoundException as e:
+        raise e
     except Exception as e:
         id = str(uuid.uuid4())
         logger.error(f"rag_api.delete_document: {id} {str(e)}")
@@ -362,11 +341,6 @@ async def delete_chunk(collection_name:str, chunk_id:str):
 async def delete_chunk(collection_name:str):
     ids=RAG.get_collection(collection_name).get()["ids"]
     RAG.get_collection(collection_name).delete(ids=ids)
-
-
-
-
-
 
 # -----------------------------------------------------------------------------------------------------------------
 

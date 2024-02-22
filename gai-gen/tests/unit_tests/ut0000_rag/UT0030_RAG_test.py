@@ -31,7 +31,7 @@ class UT0030_RAG(unittest.TestCase):
                 source='https://arxiv.org/abs/1706.03762', 
                 authors='Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Lukasz Kaiser, Illia Polosukhin',
                 publisher = 'arXiv',
-                #published_date='2017-June-12', 
+                published_date='2017-June-12', 
                 comments='This is a test document',
                 keywords=''
                 ))
@@ -39,7 +39,7 @@ class UT0030_RAG(unittest.TestCase):
 
             # Assert
             self.assertIsNotNone(doc_id)
-            self.assertEqual(doc_id, 'f9273d797cd489295a155dea10368a6a6df70686a692fbf8b5e6bc60fb23a72d')
+            self.assertEqual(doc_id, '-Sc9eXzUiSlaFV3qEDaKam33Boamkvv4tea8YPsjpy0')
         except Exception as e:
             self.fail(f"Failed to index document: {e}")
         finally:

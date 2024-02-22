@@ -1,3 +1,5 @@
+import base64
+import hashlib
 import os, zipfile
 import tempfile,shutil,re
 from . import constants,utils
@@ -63,9 +65,29 @@ def get_chunk_dir(chunk_dir, path_or_url):
     return os.path.join(chunk_dir, chunk_name)
 
 # Purpose: Create a chunk id using sha256 of its context
-def create_chunk_id(text):
-    import hashlib
-    return hashlib.sha256(text.encode('utf-8')).hexdigest()
+def create_chunk_id_base64(text):
+    """
+    Generates a Base64 encoded SHA-256 hash of the input text.
+
+    Args:
+    text (str or bytes): The input text to hash.
+
+    Returns:
+    str: The Base64 encoded SHA-256 hash of the input text.
+    """
+    if isinstance(text, bytes):
+        byte_text = text
+    else:
+        # If 'text' is not a byte string (assuming it's a str), encode it
+        byte_text = text.encode('utf-8')
+    
+    # Generate SHA256 hash (in binary form)
+    hash_digest = hashlib.sha256(byte_text).digest()
+    
+    # Convert the binary hash to Base64
+    base64_encoded = base64.b64encode(hash_digest).decode()
+    
+    return base64_encoded
 
 # Purpose: Split text using LangChain's recursive text splitter into chunks in the chunks_dir
 def split_chunks(text, chunks_dir=None,chunk_size=2000,chunk_overlap=200):
@@ -84,7 +106,7 @@ def split_chunks(text, chunks_dir=None,chunk_size=2000,chunk_overlap=200):
     )
     chunks = splitter.create_documents([text])
     for chunk in chunks:
-        chunk_id = create_chunk_id(chunk.page_content)
+        chunk_id = create_chunk_id_base64(chunk.page_content)
         chunk.metadata = {
             "chunk_id": chunk_id,
             "chunk_size": len(chunk.page_content)

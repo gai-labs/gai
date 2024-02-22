@@ -6,7 +6,7 @@ from gai.gen.rag.dalc.IndexedDocumentChunk import IndexedDocumentChunk
 class IndexedDocument(Base):
     __tablename__ = 'IndexedDocuments'
 
-    Id = Column(VARCHAR(36), primary_key=True)
+    Id = Column(VARCHAR(44), primary_key=True)
     CollectionName = Column(VARCHAR(200), nullable=False)
     ByteSize = Column(BIGINT, nullable=False)
     FileName = Column(VARCHAR(200))
