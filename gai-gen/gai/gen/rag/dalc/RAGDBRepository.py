@@ -63,7 +63,7 @@ class RAGDBRepository:
         try:
             documents = session.query(IndexedDocument).filter_by(CollectionName=collection_name).all()
             for document in documents:
-                self.delete_document(document.Id)
+                self.delete_document(collection_name=collection_name, doc_id=document.Id)
             session.commit()
         except Exception as e:
             session.rollback()
@@ -206,11 +206,14 @@ class RAGDBRepository:
             session.close()
 
 
-    def update_document(self, document):
+    def update_document(self, collection_name, document_id, document):
         Session = sessionmaker(bind=self.engine)
         session = Session()
         try:
-            existing_doc = session.query(IndexedDocument).filter_by(Id=document.Id).first()
+            existing_doc = session.query(IndexedDocument).filter(
+                IndexedDocument.Id==document_id, 
+                IndexedDocument.CollectionName==collection_name
+                ).first()
 
             if existing_doc is not None:
                 # Update all fields as necessary
@@ -242,22 +245,31 @@ class RAGDBRepository:
         finally:
             session.close()
 
-    def get_document(self, doc_id):
+    def get_document(self, collection_name, doc_id):
         Session = sessionmaker(bind=self.engine)
         session = Session()
         try:
-            return session.query(IndexedDocument).options(selectinload(IndexedDocument.ChunkGroups).selectinload(IndexedDocumentChunkGroup.Chunks)).filter_by(Id=doc_id).first()
+            return session.query(IndexedDocument).options(
+                selectinload(IndexedDocument.ChunkGroups).
+                selectinload(IndexedDocumentChunkGroup.Chunks)
+                ).filter(
+                IndexedDocument.Id==doc_id, 
+                IndexedDocument.CollectionName==collection_name
+                ).first()
         except:
             session.rollback()
             raise
         finally:
             session.close()
 
-    def delete_document(self, doc_id):
+    def delete_document(self, collection_name, doc_id):
         Session = sessionmaker(bind=self.engine)
         session = Session()
         try:
-            document = session.query(IndexedDocument).filter_by(Id=doc_id).first()
+            document = session.query(IndexedDocument).filter(
+                IndexedDocument.Id==doc_id, 
+                IndexedDocument.CollectionName==collection_name
+                ).first()
             if document is None:
                 raise ValueError("No document found with the provided Id.")
             for chunk_group in document.ChunkGroups:
@@ -469,6 +481,20 @@ class RAGDBRepository:
         finally:
             session.close()
 
+    def delete_chunk(self, chunk_id):
+        Session = sessionmaker(bind=self.engine)
+        session = Session()
+        try:
+            chunk = session.query(IndexedDocumentChunk).filter_by(Id=chunk_id).first()
+            session.delete(chunk)
+            session.commit()
+        except Exception as e:
+            session.rollback()
+            logger.error(f"RAGDBRepository: Error getting chunk {chunk_id}. Error={str(e)}")
+            raise
+        finally:
+            session.close()
+
     def list_chunks(self):
         Session = sessionmaker(bind=self.engine)
         session = Session()
@@ -494,11 +520,14 @@ class RAGDBRepository:
         finally:
             session.close()
 
-    def list_chunks_by_document_id(self, doc_id):
+    def list_chunks_by_document_id(self, collection_name, doc_id):
         Session = sessionmaker(bind=self.engine)
         session = Session()
         try:
-            doc = session.query(IndexedDocument).options(selectinload(IndexedDocument.ChunkGroups)).filter_by(Id=doc_id).first()
+            doc = session.query(IndexedDocument).options(selectinload(IndexedDocument.ChunkGroups)).filter(
+                IndexedDocument.Id==doc_id,
+                IndexedDocument.CollectionName==collection_name
+                ).first()
             if not doc:
                 return []
             chunks = doc.ChunkGroups[0].Chunks

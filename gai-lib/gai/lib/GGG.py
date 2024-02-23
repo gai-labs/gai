@@ -2,7 +2,7 @@ from gai.lib.ttt.TTTClient import TTTClient
 from gai.lib.STTClient import STTClient
 from gai.lib.TTSClient import TTSClient
 from gai.lib.ITTClient import ITTClient
-from gai.lib.RAGClient import RAGClient
+from gai.lib.RAGClientSync import RAGClientSync
 from PIL import Image
 import base64
 from io import BytesIO

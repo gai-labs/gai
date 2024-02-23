@@ -112,6 +112,10 @@ class RAGClientSync(RAGClientBase):
         return response
 
     # Database Management
+    def purge_all(self):
+        url = os.path.join(self.base_url,"purge")
+        response = http_delete(url)
+        return json.loads(response.text)
 
     def delete_collection(self, collection_name):
         url = os.path.join(self.base_url,"collection",collection_name)

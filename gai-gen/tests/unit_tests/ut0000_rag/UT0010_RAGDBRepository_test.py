@@ -58,12 +58,12 @@ class UT0010_RAGDBRepository_test(unittest.TestCase):
             abstract="""The dominant sequence transduction models are based on complex recurrent or convolutional neural networks that include an encoder and a decoder. The best performing models also connect the encoder and decoder through an attention mechanism. We propose a new simple network architecture, the Transformer, based solely on attention mechanisms, dispensing with recurrence and convolutions entirely. Experiments on two machine translation tasks show these models to be superior in quality while being more parallelizable and requiring significantly less time to train. Our model achieves 28.4 BLEU on the WMT 2014 English-to-German translation task, improving over the existing best results, including ensembles, by over 2 BLEU. On the WMT 2014 English-to-French translation task, our model establishes a new single-model state-of-the-art BLEU score of 41.8 after training for 3.5 days on eight GPUs, a small fraction of the training costs of the best models from the literature. We show that the Transformer generalizes well to other tasks by applying it successfully to English constituency parsing both with large and limited training data""",
             authors='Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Lukasz Kaiser, Illia Polosukhin',
             publisher = 'arXiv',
-            publishedDate='2017-June-12', 
+            published_date='2017-June-12', 
             comments='This is a test document')
 
 
         # Assert
-        retrieved_doc = self.repo.get_document(doc.Id)
+        retrieved_doc = self.repo.get_document(collection_name='demo', doc_id="-Sc9eXzUiSlaFV3qEDaKam33Boamkvv4tea8YPsjpy0")
 
         # Ensure the document was retrieved
         self.assertIsNotNone(retrieved_doc)
@@ -107,7 +107,7 @@ class UT0010_RAGDBRepository_test(unittest.TestCase):
                 abstract="""The dominant sequence transduction models are based on complex recurrent or convolutional neural networks that include an encoder and a decoder. The best performing models also connect the encoder and decoder through an attention mechanism. We propose a new simple network architecture, the Transformer, based solely on attention mechanisms, dispensing with recurrence and convolutions entirely. Experiments on two machine translation tasks show these models to be superior in quality while being more parallelizable and requiring significantly less time to train. Our model achieves 28.4 BLEU on the WMT 2014 English-to-German translation task, improving over the existing best results, including ensembles, by over 2 BLEU. On the WMT 2014 English-to-French translation task, our model establishes a new single-model state-of-the-art BLEU score of 41.8 after training for 3.5 days on eight GPUs, a small fraction of the training costs of the best models from the literature. We show that the Transformer generalizes well to other tasks by applying it successfully to English constituency parsing both with large and limited training data""",
                 authors='Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Lukasz Kaiser, Illia Polosukhin',
                 publisher = 'arXiv',
-                publishedDate='2017-June-12', 
+                published_date='2017-June-12', 
                 comments='This is a test document')
         except Exception as e:
             self.assertTrue(str(e).startswith("Document already exists in the database"))
@@ -146,7 +146,7 @@ class UT0010_RAGDBRepository_test(unittest.TestCase):
     def test_ut0017_create_chunks(self):
 
         #Act
-        group = self.repo.get_document('-Sc9eXzUiSlaFV3qEDaKam33Boamkvv4tea8YPsjpy0').ChunkGroups[0]
+        group = self.repo.get_document(collection_name='demo',doc_id='-Sc9eXzUiSlaFV3qEDaKam33Boamkvv4tea8YPsjpy0').ChunkGroups[0]
         chunks = self.repo.create_chunks(group.Id,group.ChunksDir)
 
         # Assert
@@ -158,7 +158,7 @@ class UT0010_RAGDBRepository_test(unittest.TestCase):
             self.assertEqual(retrieved_chunks[i].Id,chunks[i].Id)
 
         # List only chunks by id
-        retrieved_chunks = self.repo.list_chunks_by_document_id('-Sc9eXzUiSlaFV3qEDaKam33Boamkvv4tea8YPsjpy0')
+        retrieved_chunks = self.repo.list_chunks_by_document_id(collection_name='demo', doc_id='-Sc9eXzUiSlaFV3qEDaKam33Boamkvv4tea8YPsjpy0')
         self.assertEqual(len(chunks), len(retrieved_chunks))
         for i in range(len(retrieved_chunks)):
             self.assertEqual(retrieved_chunks[i].Id,chunks[i].Id)
@@ -168,7 +168,7 @@ class UT0010_RAGDBRepository_test(unittest.TestCase):
     def test_ut0018_delete_document(self):
 
         # Act
-        self.repo.delete_document('-Sc9eXzUiSlaFV3qEDaKam33Boamkvv4tea8YPsjpy0')
+        self.repo.delete_document(collection_name='demo',doc_id='-Sc9eXzUiSlaFV3qEDaKam33Boamkvv4tea8YPsjpy0')
 
         # Assert
         engine = self.repo.engine
@@ -202,7 +202,9 @@ class UT0010_RAGDBRepository_test(unittest.TestCase):
         engine = self.repo.engine
         Session = sessionmaker(bind=engine)
         session = Session()
-        retrieved_doc = session.query(IndexedDocument).filter_by(Id='-Sc9eXzUiSlaFV3qEDaKam33Boamkvv4tea8YPsjpy0').first()
+        retrieved_doc = session.query(IndexedDocument).filter(
+            IndexedDocument.Id=='-Sc9eXzUiSlaFV3qEDaKam33Boamkvv4tea8YPsjpy0',
+            IndexedDocument.CollectionName=='demo').first()
         self.assertIsNone(retrieved_doc)
 
 #-------------------------------------------------------------------------------------------------------------------------------------------

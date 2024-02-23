@@ -87,26 +87,34 @@ class RAG:
 
 #Documents-------------------------------------------------------------------------------------------------------------------------------------------
     
+    def create_document_hash(self, file):
+        return self.db_repo.create_document_hash(file)
+
     def list_documents(self,collection_name=None):
         return self.db_repo.list_documents(collection_name)
 
-    def get_document(self,document_id):
-        return self.db_repo.get_document(document_id)
+    def get_document(self,collection_name, document_id):
+        return self.db_repo.get_document(collection_name, document_id)
 
-    def update_document(self,document):
-        return self.db_repo.update_document(document)
+    def update_document(self,collection_name, document_id, document):
+        return self.db_repo.update_document(collection_name, document_id, document)
 
-    def delete_document(self,document_id):
-        doc = self.db_repo.get_document(document_id)
-        logger.info(f"Deleting document {document_id} from collection {doc.CollectionName}...")
-        self.vs_repo.delete_chunks_by_document_id(doc.CollectionName, document_id)
-        self.db_repo.delete_document(document_id)
+    def delete_document(self,collection_name, document_id):
+        logger.info(f"Deleting document {document_id} from collection {collection_name}...")
+        self.vs_repo.delete_document(collection_name, document_id)
+        self.db_repo.delete_document(collection_name, document_id)
             
     def delete_chunkgroup(self,collection_name, chunkgroup_id):
         chunkgroup = self.db_repo.get_chunkgroup(chunkgroup_id)
         logger.info(f"Deleting chunkgroup {chunkgroup_id} from collection {collection_name} with chunksize {chunkgroup.ChunkSize} and chunk count {chunkgroup.ChunkCount}...")
         self.vs_repo.delete_chunkgroup(collection_name, chunkgroup_id)
         self.db_repo.delete_chunkgroup(chunkgroup_id)
+
+    def document_exists(self, file_path):
+        doc_id = self.db_repo.create_document_hash(self, file_path)
+        doc = self.db_repo.get_document(doc_id)
+        return doc is not None
+
 
 #chunks-------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -115,6 +123,11 @@ class RAG:
 
     def get_chunk(self,collection_name, chunk_id):
         return self.vs_repo.get_chunk(collection_name, chunk_id)
+    
+    def delete_chunk(self, collection_name, chunk_id):
+
+        self.vs_repo.delete_chunk(collection_name, chunk_id)
+        self.db_repo.delete_chunk(chunk_id)
 
 #Indexing-------------------------------------------------------------------------------------------------------------------------------------------
 

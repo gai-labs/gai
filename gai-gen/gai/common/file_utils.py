@@ -205,3 +205,4 @@ def create_chunk_id_base64(text):
     base64_encoded_safe = base64.urlsafe_b64encode(hash_digest).decode().rstrip('=')
     
     return base64_encoded_safe
+

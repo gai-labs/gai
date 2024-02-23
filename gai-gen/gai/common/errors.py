@@ -2,80 +2,93 @@ from fastapi import HTTPException
 
 class ApiException(HTTPException):
     def __init__(self, status_code, code, message):
+        self.code=code
+        self.message=message
         super().__init__(status_code=status_code, detail = {
-            "code": code,
-            "message": message
+            "code": self.code,
+            "message": self.message
         })
 
 class DuplicatedDocumentException(HTTPException):
     def __init__(self):
-        message = "Document already exists in the database."
-        super().__init__(status_code=409, detail = {
-            "code": "duplicate_document",
-            "message": message
+        self.code = "duplicate_document"
+        self.message = "Document already exists in the database."
+        super().__init__(status_code=409, detail={
+            "code": self.code,
+            "message": self.message
         })
 
 
 class MessageNotFoundException(HTTPException):
     def __init__(self,message_id=None):
-        message = "Message not found"
+        self.message = "Message not found"
+        self.code="message_not_found"
         if (message_id):
-            message = f"Message {message_id} not found"
-        super().__init__(status_code=404, detail = {
-            "code": "message_not_found",
-            "message": message
+            self.message = f"Message {message_id} not found"
+        super().__init__(status_code=409, detail={
+            "code": self.code,
+            "message": self.message
         })
 
 class CollectionNotFoundException(HTTPException):
     def __init__(self,collection_name=None):
-        message = "Collection not found"
+        self.message = "Collection not found"
+        self.code="collections_not_found"
         if (collection_name):
-            message = f"Collection {collection_name} not found"
-        super().__init__(status_code=404, detail = {
-            "code": "collection_not_found",
-            "message": message
+            self.message = f"Collection {collection_name} not found"
+        super().__init__(status_code=409, detail={
+            "code": self.code,
+            "message": self.message
         })
 
 class DocumentNotFoundException(HTTPException):
     def __init__(self,document_id=None):
-        message = "Document not found"
+        self.message = "Document not found"
+        self.code="document_not_found"
         if (document_id):
-            message = f"Document {document_id} not found"
-        super().__init__(status_code=404, detail = {
-            "code": "document_not_found",
-            "message": message
+            self.message = f"Document {document_id} not found"
+        super().__init__(status_code=409, detail={
+            "code": self.code,
+            "message": self.message
         })
 
 class UserNotFoundException(HTTPException):
     def __init__(self,user_id=None):
-        message = "User not found"
+        self.code="user_not_found"
+        self.message = "User not found"
         if (user_id):
-            message = f"User {user_id} not found"
-        super().__init__(status_code=404, detail = {
-            "code": "user_not_found",
-            "message": message
+            self.message = f"User {user_id} not found"
+        super().__init__(status_code=409, detail={
+            "code": self.code,
+            "message": self.message
         })
 
 class ContextLengthExceededException(HTTPException):
     def __init__(self):
-        super().__init__(status_code=400, detail={
-            "code": "context_length_exceeded",
-            "message": "The context length exceeded the maximum allowed length."
+        self.code="context_length_exceeded"
+        self.message="The context length exceeded the maximum allowed length."
+        super().__init__(status_code=409, detail={
+            "code": self.code,
+            "message": self.message
         })
 
 class GeneratorMismatchException(HTTPException):
     def __init__(self):
+        self.code="generator_mismatch"
+        self.message="The model does not correspond to this service."
         super().__init__(status_code=409, detail={
-            "code": "generator_mismatch",
-            "message": "The model does not correspond to this service."
+            "code": self.code,
+            "message": self.message
         })
 
 
 class InternalException(HTTPException):
     def __init__(self, error_id):
+        self.code="unknown_error"
+        self.message="An unexpected error occurred. Please try again later."
         detail = {
-            "code": "unknown_error",
-            "message": "An unexpected error occurred. Please try again later.",
+            "code": self.code,
+            "message": self.message,
             "id": error_id,
         }
         super().__init__(status_code=500, detail=detail)
