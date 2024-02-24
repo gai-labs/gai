@@ -4,12 +4,13 @@ from gai.gen.rag.dalc.IndexedDocumentChunk import IndexedDocumentChunk
 from gai.gen.rag.dalc.IndexedDocumentChunkGroup import IndexedDocumentChunkGroup
 from gai.gen.rag.models.ChunkInfoPydantic import ChunkInfoPydantic
 from gai.gen.rag.models.IndexedDocumentChunkGroupPydantic import IndexedDocumentChunkGroupPydantic
+from gai.gen.rag.models.IndexedDocumentHeaderPydantic import IndexedDocumentHeaderPydantic
 from gai.gen.rag.models.IndexedDocumentPydantic import IndexedDocumentPydantic
 from tqdm import tqdm
 from datetime import datetime
 from datetime import date
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, selectinload
+from sqlalchemy.orm import sessionmaker, selectinload, defer
 from gai.gen.rag.dalc.Base import Base
 from gai.common.utils import get_gen_config, get_app_path
 from gai.common import logging, file_utils
@@ -262,6 +263,27 @@ class RAGDBRepository:
         finally:
             session.close()
 
+    # This will return only the document header without the file content.
+    def get_document_header(self, collection_name, doc_id):
+        Session = sessionmaker(bind=self.engine)
+        session = Session()
+        try:
+            summary = session.query(IndexedDocument).options(
+                selectinload(IndexedDocument.ChunkGroups),
+                defer(IndexedDocument.File)
+                ).filter(
+                IndexedDocument.Id==doc_id, 
+                IndexedDocument.CollectionName==collection_name
+                ).first()
+            
+            return IndexedDocumentHeaderPydantic.from_orm(summary)
+            
+        except:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+
     def delete_document(self, collection_name, doc_id):
         Session = sessionmaker(bind=self.engine)
         session = Session()
@@ -285,13 +307,18 @@ class RAGDBRepository:
             session.close()
 
 
-    def list_documents(self, collection_name=None):
+    def list_document_headers(self, collection_name=None):
         Session = sessionmaker(bind=self.engine)
         session = Session()
         try:
             if collection_name is None:
-                return session.query(IndexedDocument).all()
-            return session.query(IndexedDocument).filter_by(CollectionName=collection_name).all()
+                documents=session.query(IndexedDocument).all()
+            else:
+                documents=session.query(IndexedDocument).filter_by(CollectionName=collection_name).all()
+            result = []
+            for document in documents:
+                result.append(IndexedDocumentHeaderPydantic.from_orm(document))
+            return result
         except:
             session.rollback()
             raise

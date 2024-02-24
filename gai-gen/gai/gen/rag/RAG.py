@@ -71,6 +71,9 @@ class RAG:
 
 #Collections-------------------------------------------------------------------------------------------------------------------------------------------
 
+    def list_collections(self):
+        return self.vs_repo.list_collections()
+
     def delete_collection(self, collection_name):
         logger.info(f"Deleting {collection_name}...")
         try:
@@ -82,19 +85,20 @@ class RAG:
                 return
             raise
     
-    def list_collections(self):
-        return self.vs_repo.list_collections()
 
 #Documents-------------------------------------------------------------------------------------------------------------------------------------------
     
+    def list_document_headers(self,collection_name=None):
+        return self.db_repo.list_document_headers(collection_name)
+
     def create_document_hash(self, file):
         return self.db_repo.create_document_hash(file)
 
-    def list_documents(self,collection_name=None):
-        return self.db_repo.list_documents(collection_name)
-
     def get_document(self,collection_name, document_id):
         return self.db_repo.get_document(collection_name, document_id)
+
+    def get_document_header(self,collection_name, document_id):
+        return self.db_repo.get_document_header(collection_name, document_id)
 
     def update_document(self,collection_name, document_id, document):
         return self.db_repo.update_document(collection_name, document_id, document)
@@ -110,22 +114,32 @@ class RAG:
         self.vs_repo.delete_chunkgroup(collection_name, chunkgroup_id)
         self.db_repo.delete_chunkgroup(chunkgroup_id)
 
-    def document_exists(self, file_path):
+    def get_doc_id(self, file_path):
         doc_id = self.db_repo.create_document_hash(self, file_path)
         doc = self.db_repo.get_document(doc_id)
-        return doc is not None
+        if doc:
+            return doc_id
+        return None
 
 
 #chunks-------------------------------------------------------------------------------------------------------------------------------------------
 
-    def list_chunks(self,collection_name):
-        return self.vs_repo.list_chunks_by_collection_name(collection_name)
+    def list_chunks_by_document_id(self,collection_name,doc_id):
+        final=[]
+        db_chunks = self.db_repo.list_chunks_by_document_id(collection_name, doc_id)
+        for db_chunk in db_chunks:
+            vs_chunk = self.vs_repo.get_chunk(collection_name, db_chunk.Id)
+            db_chunk.Content = None
+            if vs_chunk:
+                if 'documents' in vs_chunk and len(vs_chunk['documents']) > 0:
+                    db_chunk.Content = vs_chunk['documents'][0]
+            final.append(db_chunk)
+        return final
 
     def get_chunk(self,collection_name, chunk_id):
         return self.vs_repo.get_chunk(collection_name, chunk_id)
     
     def delete_chunk(self, collection_name, chunk_id):
-
         self.vs_repo.delete_chunk(collection_name, chunk_id)
         self.db_repo.delete_chunk(chunk_id)
 
@@ -156,7 +170,6 @@ class RAG:
             _,file_type = os.path.splitext(file_path)
 
         ids = []
-
         if chunk_size is None:
             chunk_size = self.config["chunks"]["size"]
         if chunk_overlap is None:
@@ -165,13 +178,13 @@ class RAG:
         # Create document ID first and check for duplicates
         try:
             doc_id = self.db_repo.create_document_hash(file_path=file_path)
+            logger.info(f"rag.index_async: document_id={doc_id}")
         except Exception as error:
             logger.error(
                 f"RAG.index_async: Failed to create document hash. error={error}. Not created in database yet.")
             raise error
         
         try:
-
             # Create the document header to store the original
             doc=self.db_repo.create_document_header(
                 id = doc_id,
@@ -186,7 +199,7 @@ class RAG:
                 published_date=published_date, 
                 comments=comments,
                 keywords=keywords)
-            
+            logger.info(f"rag.index_async: document_header created. id={doc_id}")
             # Create the first chunk group based on the default splitting algorithm
             chunkgroup = self.db_repo.create_chunkgroup(
                 doc_id=doc.Id, 
@@ -194,11 +207,15 @@ class RAG:
                 chunk_overlap=chunk_overlap, 
                 splitter=file_utils.split_file)
             
+            logger.info(f"rag.index_async: chunkgroup created. chunkgroup_id={chunkgroup.Id}")
+
             # Create the chunks in the database
             chunks = self.db_repo.create_chunks(
                 chunkgroup.Id,
                 chunkgroup.ChunksDir
             )
+
+            logger.info(f"rag.index_async: chunks header created. count={len(chunks)}")
 
             # Index each chunk into the vector store
             logger.info(f"RAG.index_async: Begin indexing...")
@@ -234,8 +251,12 @@ class RAG:
             return doc_id
         except Exception as error:
             # Once encounter an exception, revert to a clean state.
-            self.vs_repo.delete_document(collection_name, doc_id)
-            self.db_repo.delete_document(doc_id)
+            logger.info("Error encountered. Try deleting all created chunks and chunkgroup.")
+            try:
+                self.vs_repo.delete_document(collection_name, doc_id)
+                self.db_repo.delete_document(collection_name, doc_id)
+            except Exception as e:
+                logger.error(f"RAG.index_async: Failed to delete document. error={e}")
             if "Document already exists" in str(error):
                 logger.error(
                     f"File already exists in the database. doc_id={doc_id}")

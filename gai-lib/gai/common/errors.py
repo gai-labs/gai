@@ -53,3 +53,13 @@ class MessageNotFoundException(HTTPException):
             detail["message"] = f"Message {message_id} not found"
         super().__init__(status_code=404, detail=detail)
 
+class CollectionsNotFoundException(HTTPException):
+    def __init__(self,collection_name=None):
+        detail={
+            "code": "collection_not_found",
+            "message": "Collection not found"
+        }
+        if collection_name:
+            detail["message"] = f"Collection {collection_name} not found"
+        super().__init__(status_code=404, detail=detail)
+

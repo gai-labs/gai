@@ -3,7 +3,9 @@ from gai.common.errors import *
 from fastapi import FastAPI, Body, Form, File, UploadFile
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
-from gai.gen.rag.models.IndexedDocumentChunkPydantic import IndexedDocumentChunkPydantic
+from sqlalchemy import create_engine, MetaData
+#from gai.gen.rag.models.IndexedDocumentChunkPydantic import IndexedDocumentChunkPydantic
+from gai.gen.rag.models import IndexedDocumentChunkPydantic
 
 import dependencies
 import tempfile
@@ -23,6 +25,7 @@ from gai.common.errors import *
 from gai.common import file_utils,utils
 from gai.gen.rag import RAG
 import shutil
+from gai.gen.rag.dalc.Base import Base
 
 # Configure Dependencies
 dependencies.configure_logging()
@@ -79,6 +82,7 @@ async def index_file(collection_name: str = Form(...), file: UploadFile = File(.
                 file_object.write(content)
 
             # Give the temp file path to the RAG
+            logger.info(f"rag.index_file: collection_name={collection_name} file_location={file_location}")
             metadata_dict = json.loads(metadata)
             doc_id = await rag.index_async(
                 collection_name=collection_name,
@@ -126,7 +130,52 @@ async def retrieve(request: QueryRequest = Body(...)):
         raise InternalException(id)
 
 
-### ----------------- COLLECTIONS ----------------- ###
+#Collections-------------------------------------------------------------------------------------------------------------------------------------------
+
+# GET /gen/v1/rag/collections
+@app.get("/gen/v1/rag/collections")
+async def list_collections():
+    try:
+        collections = [collection.name for collection in rag.list_collections()]
+        return JSONResponse(status_code=200, content={
+            "collections": collections
+        })
+    except Exception as e:
+        id = str(uuid.uuid4())
+        logger.error(f"rag_api.list_collections: {id} {str(e)}")
+        raise InternalException(id)
+
+# DELETE /gen/v1/rag/purge
+@app.delete("/gen/v1/rag/purge")
+async def purge_all():
+    try:
+        app_path = utils.get_app_path()
+
+        # Delete chromadb file
+        try:
+            rag.reset()
+        except Exception as e:
+            logger.error('Failed to reset chromadb')
+            raise e
+
+        # Delete db file
+        try:
+            sqlite_file = os.path.join(app_path, 'gai-rag.db')
+            engine = create_engine(f'sqlite:///{sqlite_file}')
+            metadata = MetaData()
+            metadata.reflect(bind=engine)
+            metadata.drop_all(bind=engine)
+            Base.metadata.create_all(engine)
+
+        except Exception as e:
+            logger.error('Failed to purge sqlite file')
+            raise e
+
+        return JSONResponse(status_code=200, content={"message": "Purge completed."})
+    except Exception as e:
+        id = str(uuid.uuid4())
+        logger.error(f"rag_api.purge_all: {id} {str(e)}")
+        raise InternalException(id)
 
 # DELETE /gen/v1/rag/collection/{}
 @app.delete("/gen/v1/rag/collection/{collection_name}")
@@ -148,44 +197,82 @@ async def delete_collection(collection_name):
         logger.error(f"rag_api.delete_collection: {id} {str(e)}")
         raise InternalException(id)
 
-# GET /gen/v1/rag/collections
-@app.get("/gen/v1/rag/collections")
-async def list_collections():
+
+#Documents-------------------------------------------------------------------------------------------------------------------------------------------
+
+# GET /gen/v1/rag/documents
+@app.get("/gen/v1/rag/documents")
+async def list_document_headers():
     try:
-        collections = [collection.name for collection in rag.list_collections()]
+        docs = rag.list_document_headers()
+        formatted = [{
+            "id":doc.Id,
+            "collection":doc.CollectionName,
+            "title":doc.Title,
+            "filename":doc.FileName,
+            "type":doc.FileType,
+            "size":doc.ByteSize,
+            "keywords":doc.Keywords,
+            "created":doc.CreatedAt.strftime('%Y-%b-%d'),
+            "ChunkGroups": len(doc.ChunkGroups),
+            "source":doc.Source,
+            } for doc in docs]
         return JSONResponse(status_code=200, content={
-            "collections": collections
-        })
+            "documents": formatted
+        })        
     except Exception as e:
         id = str(uuid.uuid4())
-        logger.error(f"rag_api.list_collections: {id} {str(e)}")
+        logger.error(f"rag_api.list_documents: {id} {str(e)}")
         raise InternalException(id)
-    
-# DELETE /gen/v1/rag/purge
-@app.delete("/gen/v1/rag/purge")
-async def purge_all():
+
+# GET /gen/v1/rag/collection/{collection_name}
+@app.get("/gen/v1/rag/collection/{collection_name}")
+@app.get("/gen/v1/rag/documents/{collection_name}")
+async def list_document_headers_by_collection(collection_name):
     try:
-        app_path = utils.get_app_path()
-        # Delete chromadb file
-        chromdb_dir = os.path.join(app_path, 'chromedb')
-        shutil.rmtree(chromdb_dir, ignore_errors=True)
+        docs = rag.list_document_headers(collection_name=collection_name)
+        result = []
+        for doc in docs:
+            dict = jsonable_encoder(doc)
+            result.append(dict)
 
-        # Delete db file
-        sqlite_file = os.path.join(app_path, 'gai-rag.db')
-        os.chmod(sqlite_file, 0o777)
-        os.remove(sqlite_file)
-
+        return JSONResponse(status_code=200, content={
+            "documents": result
+        })        
     except Exception as e:
         id = str(uuid.uuid4())
-        logger.error(f"rag_api.purge_all: {id} {str(e)}")
+        logger.error(f"rag_api.list_documents: {id} {str(e)}")
         raise InternalException(id)
 
-### ------------------------------------------------------------------------------- DOCUMENTS ------------------------------------------------------------------------------------ ###
+# GET /gen/v1/rag/document/{document_id}
+@app.get("/gen/v1/rag/document/{collection_name}/{document_id}")
+async def get_document_header(collection_name, document_id):
+    try:
+        document = rag.get_document_header(collection_name=collection_name, document_id=document_id)
+        if document is None:
+            logger.warning(f"rag_api.get_documents: Document with Id={document_id} not found.")
+            raise DocumentNotFoundException(document_id)
+        
+        result = jsonable_encoder(document)
 
-# Check if document already exists
-# POST /gen/v1/rag/collection/{collection_name}/document_exists
-@app.post("/gen/v1/rag/collection/{collection_name}/document_exists")
-async def document_exists(collection_name, file: UploadFile = File(...)):
+        return JSONResponse(status_code=200, content={
+            "document": result
+        })
+    except DocumentNotFoundException as e:
+        raise e
+    except Exception as e:
+        id = str(uuid.uuid4())
+        logger.error(f"rag_api.get_document: {id} {str(e)}")
+        raise InternalException(id)
+
+'''
+This function is used to get the document Id by providing 
+the content of the document; a reverse of normal get_document.
+This is used to verify if a document exists in the database
+'''
+#POST /gen/v1/rag/document/exists/{collection_name}
+@app.post("/gen/v1/rag/document/exists/{collection_name}")
+async def get_doc_id(collection_name, file: UploadFile = File(...)):
     try:
         
         # Save the file to a temporary directory
@@ -206,53 +293,6 @@ async def document_exists(collection_name, file: UploadFile = File(...)):
         raise InternalException(id)
 
 
-# GET /gen/v1/rag/collection/{collection_name}
-@app.get("/gen/v1/rag/collection/{collection_name}")
-@app.get("/gen/v1/rag/documents/{collection_name}")
-async def list_documents_by_collection(collection_name):
-    try:
-        docs = rag.list_documents(collection_name=collection_name)
-        formatted = [{"id":doc.Id,"title":doc.Title,"size":doc.ByteSize,"chunk_count":doc.ChunkCount,"chunk_size":doc.ChunkSize,"overlap_size":doc.Overlap,"source":doc.Source} for doc in docs]
-        return JSONResponse(status_code=200, content={
-            "documents": formatted
-        })        
-    except Exception as e:
-        id = str(uuid.uuid4())
-        logger.error(f"rag_api.list_documents: {id} {str(e)}")
-        raise InternalException(id)
-
-# GET /gen/v1/rag/documents
-@app.get("/gen/v1/rag/documents")
-async def list_documents():
-    try:
-        docs = RAG.list_documents()
-        formatted = [{"id":doc.Id,"title":doc.Title,"size":doc.ByteSize,"chunk_count":doc.ChunkCount,"chunk_size":doc.ChunkSize,"overlap_size":doc.Overlap,"source":doc.Source} for doc in docs]
-        return JSONResponse(status_code=200, content={
-            "documents": formatted
-        })        
-    except Exception as e:
-        id = str(uuid.uuid4())
-        logger.error(f"rag_api.list_documents: {id} {str(e)}")
-        raise InternalException(id)
-
-# GET /gen/v1/rag/document/{document_id}
-@app.get("/gen/v1/rag/document/{collection_name}/{document_id}")
-async def get_document(collection_name, document_id):
-    try:
-        document = rag.get_document(collection_name=collection_name, document_id=document_id)
-        if document is None:
-            logger.warning(f"rag_api.get_documents: Document with Id={document_id} not found.")
-            raise DocumentNotFoundException(document_id)
-
-        return JSONResponse(status_code=200, content={
-            "document": jsonable_encoder(document)
-        })
-    except DocumentNotFoundException as e:
-        raise e
-    except Exception as e:
-        id = str(uuid.uuid4())
-        logger.error(f"rag_api.get_document: {id} {str(e)}")
-        raise InternalException(id)
 
 # POST /gen/v1/rag/document
 class UpdateDocumentRequest(BaseModel):
@@ -340,14 +380,8 @@ async def list_chunks_by_collection(collection_name: str):
 
 @app.get("/gen/v1/rag/chunks/by_document/{collection_name}/{document_id}")
 async def list_chunks_by_document(collection_name, document_id: str):
-    chunks = []
-    doc = rag.get_document(document_id)
-    if not doc:
-        return "Document not found"
-    for chunk in doc.get_chunks():
-        chunks.append(IndexedDocumentChunkPydantic(**chunk))
+    chunks = rag.list_chunks_by_document_id(collection_name, document_id)
     return chunks
-
 
 @app.get("/gen/v1/rag/chunk/{id}")
 async def get_chunk(id):

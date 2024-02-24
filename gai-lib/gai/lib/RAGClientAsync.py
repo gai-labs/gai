@@ -1,13 +1,10 @@
 import os
-import requests
 import json
-from gai.common.utils import get_lib_config
 from fastapi import WebSocketDisconnect
-from gai.common.http_utils import http_post, http_post_async, http_delete,http_get,http_get_async,http_delete_async
+from gai.common.http_utils import http_post_async, http_get_async,http_delete_async
 from gai.common.logging import getLogger
 from gai.common.errors import ApiException
 logger = getLogger(__name__)
-import asyncio
 from gai.lib.ClientBase import ClientBase
 
 class RAGClientBase(ClientBase):
@@ -135,13 +132,13 @@ class RAGClientAsync(RAGClientBase):
         response = await http_get_async(url)
         return json.loads(response.text)
     
-    async def get_document_async(self,doc_id):
-        url = os.path.join(self.base_url,"document",doc_id)
+    async def get_document_async(self,collection_name,doc_id):
+        url = os.path.join(self.base_url,f"document/{collection_name}/{doc_id}")
         response = await http_get_async(url)
         return json.loads(response.text)
 
-    async def delete_document_async(self,doc_id):
-        url = os.path.join(self.base_url,"document",doc_id)
+    async def delete_document_async(self,collection_name,doc_id):
+        url = os.path.join(self.base_url,f"document/{collection_name}/{doc_id}")
         response = await http_delete_async(url)
         return json.loads(response.text)
 

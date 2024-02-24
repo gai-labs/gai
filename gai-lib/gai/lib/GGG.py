@@ -92,10 +92,10 @@ class GGG:
                 ]
                 return self.client(messages=messages, **model_params)
         elif category.lower() == "index":
-            self.client = RAGClient(self.config_path)
+            self.client = RAGClientSync(self.config_path)
             return self.client.index_file(**model_params)
         elif category.lower() == "retrieve":
-            self.client = RAGClient(self.config_path)
+            self.client = RAGClientSync(self.config_path)
             return self.client.retrieve(**model_params)
         else:
             raise Exception(f"Unknown category: {category}")

@@ -1,9 +1,7 @@
 import os
-import requests
 import json
-from gai.common.utils import get_lib_config
 from fastapi import WebSocketDisconnect
-from gai.common.http_utils import http_post, http_post_async, http_delete,http_get,http_delete_async
+from gai.common.http_utils import http_post, http_delete,http_get
 from gai.common.logging import getLogger
 from gai.common.errors import ApiException
 logger = getLogger(__name__)
@@ -67,6 +65,7 @@ class RAGClientSync(RAGClientBase):
                 "metadata": (None, json.dumps(metadata), "application/json"),
                 "collection_name": (None, collection_name, "text/plain")
             }
+            logger.info(f"RAGClient.index_file: {url}")            
             response = http_post(url=url, files=files)
 
         # Callback for progress update (returns a number between 0 and 100)
@@ -101,6 +100,7 @@ class RAGClientSync(RAGClientBase):
 
     def retrieve(self, collection_name, query_texts, n_results=None):
         url = os.path.join(self.base_url,"retrieve")
+        logger.info(f"RAGClient.retrieve: {url}")
         data = {
             "collection_name": collection_name,
             "query_texts": query_texts
@@ -111,15 +111,23 @@ class RAGClientSync(RAGClientBase):
         response = http_post(url, data=data)
         return response
 
-    # Database Management
+#Collections-------------------------------------------------------------------------------------------------------------------------------------------
+
+    def list_collections(self):
+        url = os.path.join(self.base_url,"collections")
+        logger.info(f"RAGClient.list_collections: {url}")
+        response = http_get(url)
+        return json.loads(response.text)
+
     def purge_all(self):
         url = os.path.join(self.base_url,"purge")
+        logger.info(f"RAGClient.purge_all: {url}")
         response = http_delete(url)
         return json.loads(response.text)
 
     def delete_collection(self, collection_name):
         url = os.path.join(self.base_url,"collection",collection_name)
-        logger.info(f"RAGClient.delete_collection: Deleting collection {url}")
+        logger.info(f"RAGClient.delete_collection: {url}")
         try:
             response = http_delete(url)
         except ApiException as e:
@@ -129,29 +137,35 @@ class RAGClientSync(RAGClientBase):
             raise e
         return json.loads(response.text)
 
-    def list_collections(self):
-        url = os.path.join(self.base_url,"collections")
+#Documents-------------------------------------------------------------------------------------------------------------------------------------------
+
+    def list_documents(self):
+        url = os.path.join(self.base_url,"documents")
+        logger.info(f"RAGClient.list_documents: {url}")
         response = http_get(url)
         return json.loads(response.text)
 
-    def list_documents(self,collection_name):
-        url = os.path.join(self.base_url,"collection",collection_name)
-        response = http_get(url)
-        return json.loads(response.text)
-    
-    def get_document(self,doc_id):
-        url = os.path.join(self.base_url,"document",doc_id)
+    def list_documents_by_collection(self,collection_name):
+        url = os.path.join(self.base_url,f"documents/{collection_name}")
+        logger.info(f"RAGClient.list_documents_by_collection: {url}")
         response = http_get(url)
         return json.loads(response.text)
 
-    def delete_document(self,doc_id):
-        url = os.path.join(self.base_url,"document",doc_id)
+    def get_document_header(self,collection_name,doc_id):
+        url = os.path.join(self.base_url,f"document/{collection_name}/{doc_id}")
+        logger.info(f"RAGClient.get_documents: {url}")
+        response = http_get(url)
+        return json.loads(response.text)
+
+    def delete_document(self,collection_name,doc_id):
+        url = os.path.join(self.base_url,f"document/{collection_name}/{doc_id}")
+        logger.info(f"RAGClient.delete_documents: {url}")
         response = http_delete(url)
         return json.loads(response.text)
 
-
-    def exists(self,collection_name, file_path):
-        url = os.path.join(self.base_url,f"collection/{collection_name}/document_exists")
+    def get_document_id(self,collection_name, file_path):
+        url = os.path.join(self.base_url,f"document/exists/{collection_name}")
+        logger.info(f"RAGClient.document_exists: {url}")
         with open(file_path, "r") as f:
             text = f.read()        
         files = {
@@ -159,4 +173,16 @@ class RAGClientSync(RAGClientBase):
             "collection_name": (None, collection_name, "text/plain")
         }        
         response = http_post(url, files=files)
+        return json.loads(response.text)    
+
+
+#chunks-------------------------------------------------------------------------------------------------------------------------------------------
+
+    def list_chunks(self,collection_name,doc_id):
+        url = os.path.join(self.base_url,f"chunks/by_document/{collection_name}/{doc_id}")
+        logger.info(f"RAGClient.list_chunks: {url}")
+        response = http_get(url)
         return json.loads(response.text)
+
+    
+
