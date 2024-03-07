@@ -7,13 +7,15 @@ from sqlalchemy import create_engine, MetaData
 #from gai.gen.rag.models.IndexedDocumentChunkPydantic import IndexedDocumentChunkPydantic
 from gai.gen.rag.models import IndexedDocumentChunkPydantic
 
-import dependencies
+import gai.api.dependencies as dependencies
 import tempfile
 from pydantic import BaseModel
 from typing import List, Optional
 from dotenv import load_dotenv
 load_dotenv()
 import os
+memory = os.environ.get("_IN_MEMORY",None)
+
 import json
 import tempfile
 
@@ -50,8 +52,17 @@ from dotenv import load_dotenv
 load_dotenv()
 from gai.common.logging import getLogger
 logger = getLogger(__name__)
-in_memory = os.environ.get("IN_MEMORY",True).lower() != "false"
-rag = RAG(in_memory=in_memory)
+
+# In-memory default to true unless env variable is set to false
+def get_in_memory():
+    memory = os.environ.get("IN_MEMORY",None)
+    if (memory is None):
+        memory = True
+    else:
+        memory = memory.lower() != "false"
+    return memory
+
+rag = RAG(in_memory=get_in_memory())
 
 # Pre-load default model
 
@@ -66,9 +77,7 @@ def preload_model():
 
 preload_model()
 
-# RAG specific
-
-### ----------------- INDEXING ----------------- ###
+# INDEXING -------------------------------------------------------------------------------------------------------------------------------------------
 
 # POST /gen/v1/rag/index-file
 @app.post("/gen/v1/rag/index-file")
@@ -100,14 +109,14 @@ async def index_file(collection_name: str = Form(...), file: UploadFile = File(.
             return JSONResponse(status_code=200, content={
                 "document_id": doc_id
             })
+    except DuplicatedDocumentException:
+        raise
     except Exception as e:
-        if "Document already exists in the database" in str(e):
-            raise DuplicatedDocumentException()
         id = str(uuid.uuid4())
         logger.error(f"rag_api.index_file: {id} {str(e)}")
         raise InternalException(id)
 
-### ----------------- RETRIEVAL ----------------- ###
+# RETRIEVAL -------------------------------------------------------------------------------------------------------------------------------------------
 
 # Retrieve document chunks using semantic search
 # POST /gen/v1/rag/retrieve
@@ -149,32 +158,13 @@ async def list_collections():
 @app.delete("/gen/v1/rag/purge")
 async def purge_all():
     try:
-        app_path = utils.get_app_path()
-
-        # Delete chromadb file
-        try:
-            rag.reset()
-        except Exception as e:
-            logger.error('Failed to reset chromadb')
-            raise e
-
-        # Delete db file
-        try:
-            sqlite_file = os.path.join(app_path, 'gai-rag.db')
-            engine = create_engine(f'sqlite:///{sqlite_file}')
-            metadata = MetaData()
-            metadata.reflect(bind=engine)
-            metadata.drop_all(bind=engine)
-            Base.metadata.create_all(engine)
-
-        except Exception as e:
-            logger.error('Failed to purge sqlite file')
-            raise e
-
-        return JSONResponse(status_code=200, content={"message": "Purge completed."})
+        rag.purge_all()
+        return JSONResponse(status_code=200, content={
+            "message": "Purge successful."
+        })
     except Exception as e:
         id = str(uuid.uuid4())
-        logger.error(f"rag_api.purge_all: {id} {str(e)}")
+        logger.error(f"rag_api.purge: {id} {str(e)}")
         raise InternalException(id)
 
 # DELETE /gen/v1/rag/collection/{}
@@ -282,7 +272,7 @@ async def get_doc_id(collection_name, file: UploadFile = File(...)):
                 content = await file.read()  # Read the content of the uploaded file
                 file_object.write(content)
 
-        doc_id = rag.create_document_hash(file_location)
+        doc_id = rag.create_document_hash(file_location, collection_name)
         doc = rag.get_document(collection_name, document_id=doc_id)
         return JSONResponse(status_code=200, content={
             "exists": doc is not None
@@ -291,8 +281,6 @@ async def get_doc_id(collection_name, file: UploadFile = File(...)):
         id = str(uuid.uuid4())
         logger.error(f"rag_api.document_exists: {id} {str(e)}")
         raise InternalException(id)
-
-
 
 # POST /gen/v1/rag/document
 class UpdateDocumentRequest(BaseModel):
@@ -352,7 +340,7 @@ async def list_chunks():
     row_chunks = []
     collections = rag.list_collections()
     if not collections:
-        return "No collections found"
+        raise CollectionNotFoundException()
     for collection in collections:
         columns = collection.get()
         for i in range(len(columns['ids'])):
@@ -368,7 +356,7 @@ async def list_chunks_by_collection(collection_name: str):
     row_chunks = []
     collection = rag.get_collection(collection_name)
     if not collection:
-        return "Collection not found"
+        raise CollectionNotFoundException(collection_name)
     columns = collection.get()
     for i in range(len(columns['ids'])):
         cell = {
@@ -383,13 +371,9 @@ async def list_chunks_by_document(collection_name, document_id: str):
     chunks = rag.list_chunks_by_document_id(collection_name, document_id)
     return chunks
 
-@app.get("/gen/v1/rag/chunk/{id}")
-async def get_chunk(id):
-    collections = rag.list_collections()
-    if not collections:
-        return "No collections found"
-    collection = collections[0]
-    chunk = collection.get(ids=[id])
+@app.get("/gen/v1/rag/chunk/{collection_name}/{id}")
+async def get_chunk(collection_name,id):
+    chunk = rag.get_chunk(collection_name, id)
     return chunk
 
 @app.delete("/gen/v1/rag/chunk/{collection_name}/{chunk_id}")

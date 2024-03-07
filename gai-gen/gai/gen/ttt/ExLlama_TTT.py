@@ -1,5 +1,6 @@
 from gai.gen.ttt.ChunkOutputBuilder import ChunkOutputBuilder
 from gai.gen.ttt.OutputBuilder import OutputBuilder
+from gai.gen.ttt.JsonOutputParser import JsonOutputParser
 import re
 import json
 from typing import List
@@ -219,7 +220,12 @@ class ExLlama_TTT:
         if re.search(pattern, text):
             return "text"
 
-        return None
+        # Look for the pattern that matches '{"type":"json", "json":'
+        pattern = r'^\s*{\s*(\\n)?\s*(\")?type(\")?\s*:\s*"json",\s*(\\n)?\s*(\")?json(\")?\s*:\s*'
+        if re.search(pattern, text):
+            return "json"
+
+        return "text"
 
     # If the response is a tool, the first yielded output will return
     # the tool name.
@@ -291,10 +297,7 @@ class ExLlama_TTT:
         ids = self.tokenizer.encode(prompt)
         self.client.gen_begin_reuse(ids)
         id = str(uuid4())
-        idx = 0
         buffer = []
-        text_type_prefix_len = 0
-        tools_type_prefix_len = 0
         prompt_len = len(prompt)
 
         response_type = None
@@ -323,22 +326,34 @@ class ExLlama_TTT:
                 # This is the generated text
                 new_text = text[prompt_len:]
 
-                # This is the new sub-word decoded from the token
+                """
+                * new_text is the total generated and decoded tokens(text).
+                * new_token is the unflushed buffer of decoded tokens(text). 
+                * last_text is the flushed decoded tokens(text)
+
+                For example, 
+                If the buffer has not been flushed before, that means new_token and new_text are both the same and equal to the total unflushed text.
+                If the buffer has been flushed before, that means new_token = new_text - last_text
+                """
                 new_token = new_text.replace(last_text, "")
 
                 # Find tool name and yield output head
                 if not tool_name_output:
+
+                    # Each time a token is generated, new_text is checked against the tool name pattern. tool_name_output is None until pattern is matched.
                     tool_name_output = self._yield_tool_name_output(new_text)
                     if tool_name_output:
                         yield tool_name_output
 
                 # Find tool args and yield output body
                 if not tool_arguments_output:
+
+                    # Each time a token is generated, new_text is checked against the tool arguments pattern. tool_arguments_output is None until pattern is matched.
                     tool_arguments_output = self._yield_tool_arguments_output(new_text)
                     if tool_arguments_output:
                         yield tool_arguments_output
 
-                # stop by natural end of sentence and yield output tail
+                # stop by stop token. This is the expected stop scenario for successful tool_calls.
                 if token.item() == self.tokenizer.eos_token_id:
                     yield self._yield_tool_stop_output("tool_calls")
                     return
@@ -349,10 +364,30 @@ class ExLlama_TTT:
                         yield self._yield_tool_stop_output("stop", stop_word)
                         return
 
-                # Stop by max_new_tokens
-                # Other than finish_reason="tool_calls", the output should be treated as exception
-                if i == max_new_tokens - prompt_len - tools_type_prefix_len:
+                # Stop by max_new_tokens. Exception case.
+                if i == max_new_tokens - prompt_len:
                     yield self._yield_tool_stop_output("length")
+                    return
+
+            if response_type == "json":
+                # initial text is the text that were accumulated when classification was still unknown.
+                # Once the response_type is confirmed, the initial_text must be flushed out.
+                if (not initial_text):
+                    initial_text = new_text
+
+                # This is the generated text
+                new_text = text[prompt_len:]
+
+                parser = JsonOutputParser(
+                    self.tokenizer.eos_token_id,
+                    stopping_words,
+                    max_new_tokens)
+                output,stop_type = parser.parse(new_text)
+                if output:
+                    yield ChunkOutputBuilder.BuildContentHead(generator=self.gai_config["model_name"])
+                    yield ChunkOutputBuilder.BuildContentBody(generator=self.gai_config["model_name"],content=output)
+                    yield ChunkOutputBuilder.BuildContentTail(generator=self.gai_config["model_name"],finish_reason=stop_type)
+                    self.client.end_beam_search()
                     return
 
             if response_type == "text":
@@ -370,7 +405,7 @@ class ExLlama_TTT:
                 # This is equivalent to new_token = self.tokenizer.decode(token) but faster.
                 new_token = new_text.replace(last_text, "")
 
-                # stop by natural end of sentence
+                # stop by stop token
                 if token.item() == self.tokenizer.eos_token_id:
                     logger.debug(
                         f"ExLlama_TTT.streaming: stopped by eos_token_id: {self.tokenizer.eos_token_id}")

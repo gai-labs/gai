@@ -10,9 +10,11 @@ class ApiException(HTTPException):
         })
 
 class DuplicatedDocumentException(HTTPException):
-    def __init__(self):
+    def __init__(self, doc_id=None):
         self.code = "duplicate_document"
         self.message = "Document already exists in the database."
+        if (doc_id):
+            self.message = f"Document {doc_id} already exists in the database."
         super().__init__(status_code=409, detail={
             "code": self.code,
             "message": self.message
@@ -25,7 +27,7 @@ class MessageNotFoundException(HTTPException):
         self.code="message_not_found"
         if (message_id):
             self.message = f"Message {message_id} not found"
-        super().__init__(status_code=409, detail={
+        super().__init__(status_code=404, detail={
             "code": self.code,
             "message": self.message
         })
@@ -36,7 +38,7 @@ class CollectionNotFoundException(HTTPException):
         self.code="collections_not_found"
         if (collection_name):
             self.message = f"Collection {collection_name} not found"
-        super().__init__(status_code=409, detail={
+        super().__init__(status_code=404, detail={
             "code": self.code,
             "message": self.message
         })
@@ -47,7 +49,7 @@ class DocumentNotFoundException(HTTPException):
         self.code="document_not_found"
         if (document_id):
             self.message = f"Document {document_id} not found"
-        super().__init__(status_code=409, detail={
+        super().__init__(status_code=404, detail={
             "code": self.code,
             "message": self.message
         })
@@ -58,7 +60,7 @@ class UserNotFoundException(HTTPException):
         self.message = "User not found"
         if (user_id):
             self.message = f"User {user_id} not found"
-        super().__init__(status_code=409, detail={
+        super().__init__(status_code=404, detail={
             "code": self.code,
             "message": self.message
         })
@@ -67,7 +69,7 @@ class ContextLengthExceededException(HTTPException):
     def __init__(self):
         self.code="context_length_exceeded"
         self.message="The context length exceeded the maximum allowed length."
-        super().__init__(status_code=409, detail={
+        super().__init__(status_code=400, detail={
             "code": self.code,
             "message": self.message
         })

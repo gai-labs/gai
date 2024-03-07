@@ -1,6 +1,6 @@
 import re
 import json
-class TestYieldToolArgumentsOutput:
+class UT0230_ToolsOutputParser_test:
 
     def test_yield_tool_arguments_output(self):
         text = ' {\n    "function": {\n        "name": "gg",\n        "parameters": {\n            "search_query": "latest news Singapore"\n        }'

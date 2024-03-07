@@ -44,7 +44,7 @@ class RAGVSRepository:
         self.client = client
         self.n_results = config["chromadb"]["n_results"]
 
-    def reset(self):
+    def purge(self):
         self.client.reset()
 
 #Collections-------------------------------------------------------------------------------------------------------------------------------------------

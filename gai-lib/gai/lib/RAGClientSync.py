@@ -32,7 +32,7 @@ class RAGClientSync(RAGClientBase):
     def __init__(self,config_path=None):
         super().__init__(config_path)
 
-### ----------------- INDEXING ----------------- ###
+# Indexing Transaction -------------------------------------------------------------------------------------------------------------------------------------------
 
     # synchronous version of index_file_async
     def index_file(self, 
@@ -178,11 +178,34 @@ class RAGClientSync(RAGClientBase):
 
 #chunks-------------------------------------------------------------------------------------------------------------------------------------------
 
-    def list_chunks(self,collection_name,doc_id):
+    def list_chunks(self,collection_name=None,doc_id=None):
+
+        if collection_name and not doc_id or doc_id and not collection_name:
+            raise Exception("Both collection_name and doc_id must be provided or neither.")
+        
+        if not collection_name and not doc_id:
+            url = os.path.join(self.base_url,"chunks")
+            logger.info(f"RAGClient.list_chunks: {url}")
+            try:
+                response = http_get(url)
+                return json.loads(response.text)
+            except Exception as e:
+                if e.detail['code'] == 'collections_not_found':
+                    return []
+                raise e
+
         url = os.path.join(self.base_url,f"chunks/by_document/{collection_name}/{doc_id}")
         logger.info(f"RAGClient.list_chunks: {url}")
         response = http_get(url)
+        if response.status_code == 404:
+            return []
+
         return json.loads(response.text)
 
     
+    def get_chunk(self,collection_name, chunk_id):
 
+        url = os.path.join(self.base_url,f"chunk/{collection_name}/{chunk_id}")
+        logger.info(f"RAGClient.get_chunk: {url}")
+        response = http_get(url)
+        return json.loads(response.text)

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Text, VARCHAR, DateTime, Boolean, BLOB, JSON, INTEGER, Date,BIGINT
+from sqlalchemy import Column, PrimaryKeyConstraint, Text, VARCHAR, DateTime, Boolean, BLOB, JSON, INTEGER, Date,BIGINT
 from sqlalchemy.orm import relationship
 from gai.gen.rag.dalc.Base import Base
 from gai.gen.rag.dalc.IndexedDocumentChunk import IndexedDocumentChunk
@@ -6,7 +6,7 @@ from gai.gen.rag.dalc.IndexedDocumentChunk import IndexedDocumentChunk
 class IndexedDocument(Base):
     __tablename__ = 'IndexedDocuments'
 
-    Id = Column(VARCHAR(44), primary_key=True)
+    Id = Column(VARCHAR(44), nullable=False)
     CollectionName = Column(VARCHAR(200), nullable=False)
     ByteSize = Column(BIGINT, nullable=False)
     FileName = Column(VARCHAR(200))
@@ -25,3 +25,7 @@ class IndexedDocument(Base):
     UpdatedAt = Column(DateTime)
 
     ChunkGroups = relationship("IndexedDocumentChunkGroup", back_populates="Document")
+
+    __table_args__ = (
+        PrimaryKeyConstraint('Id', 'CollectionName'),
+    )

@@ -1,0 +1,9 @@
+default_generator: rag
+gai_url: "http://localhost:12031/gen"
+#gai_url: "https://gaiaio.ai/api/gen"
+generators:
+    rag:
+        type: rag
+        url: "/v1/rag"
+        env:
+            gai_api_key: "gai_api_key"

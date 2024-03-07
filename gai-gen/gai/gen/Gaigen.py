@@ -4,7 +4,7 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 logger = logging.getLogger(__name__)
-in_memory = os.environ.get("IN_MEMORY",True).lower() != "false"
+in_memory = os.environ.get("IN_MEMORY","true").lower() != "false"
 
 class Gaigen:
     __instance = None       # singleton

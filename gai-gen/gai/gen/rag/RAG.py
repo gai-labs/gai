@@ -2,6 +2,7 @@ import tempfile
 import time
 import os
 import uuid
+from gai.common.errors import DuplicatedDocumentException
 from gai.gen.rag.dalc.RAGVSRepository import RAGVSRepository
 import torch
 import gc
@@ -16,6 +17,7 @@ from gai.common import logging, file_utils
 from gai.common.StatusUpdater import StatusUpdater
 from gai.gen.rag.dalc.RAGDBRepository import RAGDBRepository
 from gai.gen.rag.dalc.IndexedDocument import IndexedDocument
+from sqlalchemy.orm import sessionmaker
 logger = logging.getLogger(__name__)
 import json
 
@@ -69,81 +71,7 @@ class RAG:
                 logger.warning(f"reset: {e}")
                 raise e
 
-#Collections-------------------------------------------------------------------------------------------------------------------------------------------
-
-    def list_collections(self):
-        return self.vs_repo.list_collections()
-
-    def delete_collection(self, collection_name):
-        logger.info(f"Deleting {collection_name}...")
-        try:
-            self.vs_repo.delete_collection(collection_name)
-            self.db_repo.delete_collection(collection_name)
-        except Exception as e:
-            if "does not exist." in str(e):
-                logger.warning(f"delete_collection: {e}")
-                return
-            raise
-    
-
-#Documents-------------------------------------------------------------------------------------------------------------------------------------------
-    
-    def list_document_headers(self,collection_name=None):
-        return self.db_repo.list_document_headers(collection_name)
-
-    def create_document_hash(self, file):
-        return self.db_repo.create_document_hash(file)
-
-    def get_document(self,collection_name, document_id):
-        return self.db_repo.get_document(collection_name, document_id)
-
-    def get_document_header(self,collection_name, document_id):
-        return self.db_repo.get_document_header(collection_name, document_id)
-
-    def update_document(self,collection_name, document_id, document):
-        return self.db_repo.update_document(collection_name, document_id, document)
-
-    def delete_document(self,collection_name, document_id):
-        logger.info(f"Deleting document {document_id} from collection {collection_name}...")
-        self.vs_repo.delete_document(collection_name, document_id)
-        self.db_repo.delete_document(collection_name, document_id)
-            
-    def delete_chunkgroup(self,collection_name, chunkgroup_id):
-        chunkgroup = self.db_repo.get_chunkgroup(chunkgroup_id)
-        logger.info(f"Deleting chunkgroup {chunkgroup_id} from collection {collection_name} with chunksize {chunkgroup.ChunkSize} and chunk count {chunkgroup.ChunkCount}...")
-        self.vs_repo.delete_chunkgroup(collection_name, chunkgroup_id)
-        self.db_repo.delete_chunkgroup(chunkgroup_id)
-
-    def get_doc_id(self, file_path):
-        doc_id = self.db_repo.create_document_hash(self, file_path)
-        doc = self.db_repo.get_document(doc_id)
-        if doc:
-            return doc_id
-        return None
-
-
-#chunks-------------------------------------------------------------------------------------------------------------------------------------------
-
-    def list_chunks_by_document_id(self,collection_name,doc_id):
-        final=[]
-        db_chunks = self.db_repo.list_chunks_by_document_id(collection_name, doc_id)
-        for db_chunk in db_chunks:
-            vs_chunk = self.vs_repo.get_chunk(collection_name, db_chunk.Id)
-            db_chunk.Content = None
-            if vs_chunk:
-                if 'documents' in vs_chunk and len(vs_chunk['documents']) > 0:
-                    db_chunk.Content = vs_chunk['documents'][0]
-            final.append(db_chunk)
-        return final
-
-    def get_chunk(self,collection_name, chunk_id):
-        return self.vs_repo.get_chunk(collection_name, chunk_id)
-    
-    def delete_chunk(self, collection_name, chunk_id):
-        self.vs_repo.delete_chunk(collection_name, chunk_id)
-        self.db_repo.delete_chunk(chunk_id)
-
-#Indexing-------------------------------------------------------------------------------------------------------------------------------------------
+# Indexing Transaction -------------------------------------------------------------------------------------------------------------------------------------------
 
     # Split text in temp dir and index each chunk into vector store locally.
     # Public. Used by rag_api and Gaigen.
@@ -176,18 +104,19 @@ class RAG:
             chunk_overlap = self.config["chunks"]["overlap"]
 
         # Create document ID first and check for duplicates
-        try:
-            doc_id = self.db_repo.create_document_hash(file_path=file_path)
-            logger.info(f"rag.index_async: document_id={doc_id}")
-        except Exception as error:
-            logger.error(
-                f"RAG.index_async: Failed to create document hash. error={error}. Not created in database yet.")
-            raise error
+        # try:
+        #     doc_id = self.db_repo.create_document_hash(collection_name=collection_name, file_path=file_path)
+        #     logger.info(f"rag.index_async: document_id={doc_id}")
+        # except Exception as error:
+        #     logger.error(
+        #         f"RAG.index_async: Failed to create document hash. error={error}. Not created in database yet.")
+        #     raise error
         
+        Session = sessionmaker(bind=self.db_repo.engine)
+        session = Session()
         try:
             # Create the document header to store the original
             doc=self.db_repo.create_document_header(
-                id = doc_id,
                 collection_name=collection_name, 
                 file_path=file_path, 
                 file_type=file_type,
@@ -198,21 +127,25 @@ class RAG:
                 publisher = publisher,
                 published_date=published_date, 
                 comments=comments,
-                keywords=keywords)
-            logger.info(f"rag.index_async: document_header created. id={doc_id}")
+                keywords=keywords,
+                session=session)
+            
+            logger.info(f"rag.index_async: document_header created. id={doc.Id}")
             # Create the first chunk group based on the default splitting algorithm
             chunkgroup = self.db_repo.create_chunkgroup(
                 doc_id=doc.Id, 
                 chunk_size=chunk_size, 
                 chunk_overlap=chunk_overlap, 
-                splitter=file_utils.split_file)
+                splitter=file_utils.split_file,
+                session=session)
             
             logger.info(f"rag.index_async: chunkgroup created. chunkgroup_id={chunkgroup.Id}")
 
             # Create the chunks in the database
             chunks = self.db_repo.create_chunks(
                 chunkgroup.Id,
-                chunkgroup.ChunksDir
+                chunkgroup.ChunksDir,
+                session=session
             )
 
             logger.info(f"rag.index_async: chunks header created. count={len(chunks)}")
@@ -221,21 +154,26 @@ class RAG:
             logger.info(f"RAG.index_async: Begin indexing...")
             for i, chunk in tqdm(enumerate(chunks)):
                 chunk = self.db_repo.get_chunk(chunk.Id)
-                self.vs_repo.index_chunk(
-                    collection_name=collection_name, 
-                    content=chunk.Content, 
-                    chunk_id=chunk.Id, 
-                    document_id=doc_id,
-                    chunkgroup_id=chunkgroup.Id,
-                    source=doc.Source if doc.Source else "",
-                    abstract=doc.Abstract if doc.Abstract else "",
-                    title=doc.Title if doc.Title else "",
-                    published_date=doc.PublishedDate.strftime('%Y-%b-%d') if doc.PublishedDate else "",
-                    keywords=doc.Keywords if doc.Keywords else ""
-                )
-                ids.append(chunk.Id)
-                logger.debug(
-                    f"RAG.index_async: Indexed {i+1}/{len(chunks)} chunk {chunk.Id} into collection {collection_name}")
+                try:
+                    self.vs_repo.index_chunk(
+                        collection_name=collection_name, 
+                        content=chunk.Content, 
+                        chunk_id=chunk.Id, 
+                        document_id=doc.Id,
+                        chunkgroup_id=chunkgroup.Id,
+                        source=doc.Source if doc.Source else "",
+                        abstract=doc.Abstract if doc.Abstract else "",
+                        title=doc.Title if doc.Title else "",
+                        published_date=doc.PublishedDate.strftime('%Y-%b-%d') if doc.PublishedDate else "",
+                        keywords=doc.Keywords if doc.Keywords else ""
+                    )
+                    ids.append(chunk.Id)
+                    logger.debug(
+                        f"RAG.index_async: Indexed {i+1}/{len(chunks)} chunk {chunk.Id} into collection {collection_name}")
+                except Exception as e:
+                    # Log error and continue. Do not raise exception to avoid stopping the indexing process. We can rerun the indexing process to create the missing chunks.
+                    chunk.IsIndexed = False
+                    logger.error(f"RAG.index_async: Failed to index chunk {chunk.Id}. error={e}")
 
                 # Callback for progress update
                 if status_updater:
@@ -247,24 +185,26 @@ class RAG:
                 logger.debug("RAG.index_async: Sending stop token")
                 await status_updater.update_stop()
 
+            session.commit()
             logger.info(f"RAG.index_async: indexing...done")
-            return doc_id
+            return doc.Id
+        except DuplicatedDocumentException:
+            raise
         except Exception as error:
-            # Once encounter an exception, revert to a clean state.
-            logger.info("Error encountered. Try deleting all created chunks and chunkgroup.")
-            try:
-                self.vs_repo.delete_document(collection_name, doc_id)
-                self.db_repo.delete_document(collection_name, doc_id)
-            except Exception as e:
-                logger.error(f"RAG.index_async: Failed to delete document. error={e}")
-            if "Document already exists" in str(error):
-                logger.error(
-                    f"File already exists in the database. doc_id={doc_id}")
-                raise error
+            session.rollback()
+
+            # if "Document already exists" in str(error):
+            #     logger.error(
+            #         f"RAG.index_async: File already exists in the database. collection_name={collection_name} doc_id={doc.Id}")
+            #     raise error
 
             logger.error(
                 f"RAG.index_async: Failed to create document header. error={error}")
             raise error
+        
+        finally:
+            session.close()
+
 
     # RETRIEVAL
     def retrieve(self, collection_name, query_texts, n_results=None):
@@ -292,6 +232,95 @@ class RAG:
 
         # drop duplicates
         return df.drop_duplicates(subset=['ids']).sort_values('distances', ascending=True)
+
+
+#Collections-------------------------------------------------------------------------------------------------------------------------------------------
+
+    def list_collections(self):
+        return self.vs_repo.list_collections()
+
+    def delete_collection(self, collection_name):
+        logger.info(f"Deleting {collection_name}...")
+        try:
+            self.vs_repo.delete_collection(collection_name)
+            self.db_repo.delete_collection(collection_name)
+        except Exception as e:
+            if "does not exist." in str(e):
+                logger.warning(f"delete_collection: {e}")
+                return
+            raise
+    
+    def purge_all(self):
+        try:
+
+            # Delete chromadb file
+            try:
+                self.vs_repo.purge()
+            except Exception as e:
+                logger.error('Failed to reset chromadb')
+                raise e
+
+            # Delete db file
+            try:
+                self.db_repo.purge()
+            except Exception as e:
+                logger.error('Failed to purge sqlite file')
+                raise e
+
+        except Exception as e:
+            logger.error(f"RAG.purge_all: {str(e)}")
+            raise e
+
+#Documents-------------------------------------------------------------------------------------------------------------------------------------------
+    
+    def list_document_headers(self,collection_name=None):
+        return self.db_repo.list_document_headers(collection_name)
+
+    def create_document_hash(self, file):
+        return self.db_repo.create_document_hash(file)
+
+    def get_document(self,collection_name, document_id):
+        return self.db_repo.get_document(collection_name, document_id)
+
+    def get_document_header(self,collection_name, document_id):
+        return self.db_repo.get_document_header(collection_name, document_id)
+
+    def update_document(self,collection_name, document_id, document):
+        return self.db_repo.update_document(collection_name, document_id, document)
+
+    def delete_document(self,collection_name, document_id):
+        logger.info(f"Deleting document {document_id} from collection {collection_name}...")
+        self.vs_repo.delete_document(collection_name, document_id)
+        self.db_repo.delete_document(collection_name, document_id)
+            
+    def delete_chunkgroup(self,collection_name, chunkgroup_id):
+        chunkgroup = self.db_repo.get_chunkgroup(chunkgroup_id)
+        logger.info(f"Deleting chunkgroup {chunkgroup_id} from collection {collection_name} with chunksize {chunkgroup.ChunkSize} and chunk count {chunkgroup.ChunkCount}...")
+        self.vs_repo.delete_chunkgroup(collection_name, chunkgroup_id)
+        self.db_repo.delete_chunkgroup(chunkgroup_id)
+
+#chunks-------------------------------------------------------------------------------------------------------------------------------------------
+
+    def list_chunks_by_document_id(self,collection_name,doc_id):
+        final=[]
+        db_chunks = self.db_repo.list_chunks_by_document_id(collection_name, doc_id)
+        for db_chunk in db_chunks:
+            vs_chunk = self.vs_repo.get_chunk(collection_name, db_chunk.Id)
+            db_chunk.Content = None
+            if vs_chunk:
+                if 'documents' in vs_chunk and len(vs_chunk['documents']) > 0:
+                    db_chunk.Content = vs_chunk['documents'][0]
+            final.append(db_chunk)
+        return final
+
+    def get_chunk(self,collection_name, chunk_id):
+        return self.vs_repo.get_chunk(collection_name, chunk_id)
+    
+    def delete_chunk(self, collection_name, chunk_id):
+        self.vs_repo.delete_chunk(collection_name, chunk_id)
+        self.db_repo.delete_chunk(chunk_id)
+
+
 
 
         

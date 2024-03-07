@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
+from gai.gen.rag.models.IndexedDocumentChunkGroupPydantic import IndexedDocumentChunkGroupPydantic
 
 class IndexedDocumentHeaderPydantic(BaseModel):
     Id: str = Field(...)
@@ -18,6 +19,7 @@ class IndexedDocumentHeaderPydantic(BaseModel):
     Keywords: Optional[str] = None
     CreatedAt: datetime
     UpdatedAt: datetime
+    ChunkGroups: Optional[List[IndexedDocumentChunkGroupPydantic]] = None
 
     class Config:
         from_attributes = True

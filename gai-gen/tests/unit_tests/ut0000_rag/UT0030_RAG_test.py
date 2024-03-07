@@ -14,6 +14,7 @@ class UT0030_RAG(unittest.TestCase):
     def setUpClass(cls):
         cls.rag = RAG()
 
+
     def test_ut0031_rag_index(self):
 
         # Arrange

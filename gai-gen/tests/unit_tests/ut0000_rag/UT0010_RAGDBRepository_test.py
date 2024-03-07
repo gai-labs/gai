@@ -24,19 +24,19 @@ class UT0010_RAGDBRepository_test(unittest.TestCase):
         
     def test_ut0011_convert_and_load_pdffile(self):
         file_path = os.path.join(os.path.dirname(__file__), "attention-is-all-you-need.pdf")
-        content = self.repo.load_and_convert(file_path=file_path, file_type=file_path.split('.')[-1])
+        content = self.repo._load_and_convert(file_path=file_path, file_type=file_path.split('.')[-1])
         self.assertTrue(content.startswith("3 2 0 2 g u A 2 ] L C . s c [ 7 v 2 6 7 3 0 . 6 0 7 1"))
 
     def test_ut0012_convert_and_load_textfile(self):
         file_path = os.path.join(os.path.dirname(__file__), "pm_long_speech_2023.txt")
-        content = self.repo.load_and_convert(file_path=file_path, file_type=file_path.split('.')[-1])
+        content = self.repo._load_and_convert(file_path=file_path, file_type=file_path.split('.')[-1])
         self.assertTrue(content.startswith('PM Lee Hsien Loong delivered'))
 
 #-------------------------------------------------------------------------------------------------------------------------------------------
     def test_ut0013_create_document_hash(self):
         # Arrange
         file_path = os.path.join(os.path.dirname(__file__), "attention-is-all-you-need.pdf")
-        doc_id = self.repo.create_document_hash(file_path)
+        doc_id = self.repo.create_document_hash('demo',file_path)
 
         #convert to base 64
 
@@ -46,10 +46,10 @@ class UT0010_RAGDBRepository_test(unittest.TestCase):
 
         # Arrange
         file_path = os.path.join(os.path.dirname(__file__), "attention-is-all-you-need.pdf")
+        session = sessionmaker(bind=self.repo.engine)()
 
         # Act
         doc=self.repo.create_document_header(
-            id="-Sc9eXzUiSlaFV3qEDaKam33Boamkvv4tea8YPsjpy0",
             collection_name='demo', 
             file_path=file_path, 
             file_type='pdf',
@@ -59,8 +59,9 @@ class UT0010_RAGDBRepository_test(unittest.TestCase):
             authors='Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Lukasz Kaiser, Illia Polosukhin',
             publisher = 'arXiv',
             published_date='2017-June-12', 
-            comments='This is a test document')
-
+            comments='This is a test document',
+            session=session)
+        session.commit()
 
         # Assert
         retrieved_doc = self.repo.get_document(collection_name='demo', doc_id="-Sc9eXzUiSlaFV3qEDaKam33Boamkvv4tea8YPsjpy0")
@@ -95,10 +96,11 @@ class UT0010_RAGDBRepository_test(unittest.TestCase):
     def test_ut0015_should_not_create_duplicate(self):
         # Arrange
         file_path = os.path.join(os.path.dirname(__file__), "attention-is-all-you-need.pdf")
+        session = sessionmaker(bind=self.repo.engine)()
+
         # Act
         try:
             self.repo.create_document_header(
-                id="-Sc9eXzUiSlaFV3qEDaKam33Boamkvv4tea8YPsjpy0",
                 collection_name='demo', 
                 file_path=file_path, 
                 file_type='pdf',
@@ -108,7 +110,9 @@ class UT0010_RAGDBRepository_test(unittest.TestCase):
                 authors='Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Lukasz Kaiser, Illia Polosukhin',
                 publisher = 'arXiv',
                 published_date='2017-June-12', 
-                comments='This is a test document')
+                comments='This is a test document',
+                session=session)
+            session.commit()
         except Exception as e:
             self.assertTrue(str(e).startswith("Document already exists in the database"))
 
@@ -116,18 +120,22 @@ class UT0010_RAGDBRepository_test(unittest.TestCase):
 
     def test_ut0016_create_chunk_group(self):
 
+        # Arrange
+        engine = self.repo.engine
+        Session = sessionmaker(bind=engine)
+        session = Session()
+
+
         # Act
         chunkgroup = self.repo.create_chunkgroup(
             doc_id='-Sc9eXzUiSlaFV3qEDaKam33Boamkvv4tea8YPsjpy0', 
             chunk_size=1000, 
             chunk_overlap=100, 
-            splitter=file_utils.split_file)
+            splitter=file_utils.split_file,
+            session=session)
+        session.commit()
 
         # Assert
-        engine = self.repo.engine
-        Session = sessionmaker(bind=engine)
-        session = Session()
-
         retrieved_doc = session.query(IndexedDocument).filter_by(Id='-Sc9eXzUiSlaFV3qEDaKam33Boamkvv4tea8YPsjpy0').first()
         retrieved_group = session.query(IndexedDocumentChunkGroup).filter_by(Id=chunkgroup.Id).first()
 
@@ -145,9 +153,15 @@ class UT0010_RAGDBRepository_test(unittest.TestCase):
 
     def test_ut0017_create_chunks(self):
 
+        # Arrange
+        engine = self.repo.engine
+        Session = sessionmaker(bind=engine)
+        session = Session()
+
         #Act
         group = self.repo.get_document(collection_name='demo',doc_id='-Sc9eXzUiSlaFV3qEDaKam33Boamkvv4tea8YPsjpy0').ChunkGroups[0]
-        chunks = self.repo.create_chunks(group.Id,group.ChunksDir)
+        chunks = self.repo.create_chunks(group.Id,group.ChunksDir,session=session)
+        session.commit()
 
         # Assert
 
@@ -188,20 +202,21 @@ class UT0010_RAGDBRepository_test(unittest.TestCase):
     def test_ut0019_delete_collection(self):
 
         # Arrange
+        engine = self.repo.engine
+        Session = sessionmaker(bind=engine)
+        session = Session()
         doc_id=self.repo.create_document_header(
-            id='-Sc9eXzUiSlaFV3qEDaKam33Boamkvv4tea8YPsjpy0',
             collection_name='demo', 
             file_path=os.path.join(os.path.dirname(__file__), "attention-is-all-you-need.pdf"),
-            file_type='pdf'
+            file_type='pdf',
+            session=session
         )
+        session.commit()
 
         # Act
         self.repo.delete_collection('demo')
 
         # Assert
-        engine = self.repo.engine
-        Session = sessionmaker(bind=engine)
-        session = Session()
         retrieved_doc = session.query(IndexedDocument).filter(
             IndexedDocument.Id=='-Sc9eXzUiSlaFV3qEDaKam33Boamkvv4tea8YPsjpy0',
             IndexedDocument.CollectionName=='demo').first()
@@ -211,27 +226,31 @@ class UT0010_RAGDBRepository_test(unittest.TestCase):
     
     def test_ut0020_delete_chunks_by_document_id(self):
             
-            # Arrange
+            # Act
+            engine = self.repo.engine
+            Session = sessionmaker(bind=engine)
+            session = Session()
             doc=self.repo.create_document_header(
-                id='-Sc9eXzUiSlaFV3qEDaKam33Boamkvv4tea8YPsjpy0',
                 collection_name='demo', 
                 file_path=os.path.join(os.path.dirname(__file__), "attention-is-all-you-need.pdf"),
-                file_type='pdf'
+                file_type='pdf',
+                session=session
             )
             group = self.repo.create_chunkgroup(
                 doc_id=doc.Id, 
                 chunk_size=1000, 
                 chunk_overlap=100, 
-                splitter=file_utils.split_file)
-            self.repo.create_chunks(group.Id,group.ChunksDir)
+                splitter=file_utils.split_file, 
+                session=session)
+            session.commit()
+
+            # Arrange
+            self.repo.create_chunks(group.Id,group.ChunksDir,session=session)
     
             # Act
             self.repo.delete_chunks_by_document_id('-Sc9eXzUiSlaFV3qEDaKam33Boamkvv4tea8YPsjpy0')
     
             # Assert
-            engine = self.repo.engine
-            Session = sessionmaker(bind=engine)
-            session = Session()
             retrieved_chunks = session.query(IndexedDocumentChunk).all()
             self.assertEqual(len(retrieved_chunks), 0)
 
@@ -239,29 +258,33 @@ class UT0010_RAGDBRepository_test(unittest.TestCase):
 #-------------------------------------------------------------------------------------------------------------------------------------------
     
     def test_ut0021_list_documents(self):
-            
+
         # Arrange
+        engine = self.repo.engine
+        Session = sessionmaker(bind=engine)
+        session = Session()
         self.repo.create_document_header(
-            id='80c7064c-b446-45cc-8f0e-8cc781eb3ecb',
             collection_name='demo1', 
             file_path=os.path.join(os.path.dirname(__file__), "attention-is-all-you-need.pdf"),
-            file_type='pdf'
+            file_type='pdf',
+            session=session
         )
         self.repo.create_document_header(
-            id='d8a4994e-8df1-41bd-acf0-0ea52cb4c10e',
             collection_name='demo1', 
-            file_path=os.path.join(os.path.dirname(__file__), "attention-is-all-you-need.pdf"),
-            file_type='pdf'
+            file_path=os.path.join(os.path.dirname(__file__), "pm_long_speech_2023.txt"),
+            file_type='pdf',
+            session=session
         )
+        session.commit()
 
         # Act
-        docs = self.repo.list_documents()
+        docs = self.repo.list_document_headers()
 
         # Assert
         self.assertEqual(len(docs), 3)
 
         # Act
-        docs = self.repo.list_documents('demo1')
+        docs = self.repo.list_document_headers('demo1')
 
         # Assert
         self.assertEqual(len(docs), 2)
